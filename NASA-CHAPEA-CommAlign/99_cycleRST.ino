@@ -1,0 +1,5 @@
+void cycleReset(){
+
+  inputOld = inputByte;
+
+}
