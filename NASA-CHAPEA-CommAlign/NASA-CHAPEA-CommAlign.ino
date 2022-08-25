@@ -27,6 +27,7 @@
  */
   const String myNameIs = "NASA-CHAPEA-CommAlign: 28 Jul 2022";    // nametag for Serial monitor setup
 
+  #define numPISOregs 2
   #define gridsInUse 2
   #define numLEDs 264                                           // single pixel for the spaceKey
   
@@ -156,6 +157,7 @@ PROGMEM const unsigned char CH[] = {
 //-------------- GLOBAL VARIABLES ----------------------------//
 /* Decrlare variables used by various functions.
  */
+  byte PISOdata[numPISOregs];
   byte inputByte;
   byte inputOld;
   byte plcInByte;
@@ -168,8 +170,11 @@ PROGMEM const unsigned char CH[] = {
 
   bool dishLock;
   int accuracy;
+  int accRange;
+  int driftScale;
+  bool commFail;
 
-  uint32_t decayTick;
+  uint32_t driftTick;
   uint32_t inputTick;
 
   byte buffer[10];
@@ -239,6 +244,13 @@ void loop() {
         dishLock = true;
         scanAnimate();
         grid.clear();
+        if (accuracy == 100) accRange = 1;
+        else if (accuracy >= 85) accRange = 2;
+        else if (accuracy >= 50) accRange = 3;
+        else if (accuracy > 0) accRange = 4;
+        else accRange = 5;
+        updateControl();
+        
         
         break;
       }

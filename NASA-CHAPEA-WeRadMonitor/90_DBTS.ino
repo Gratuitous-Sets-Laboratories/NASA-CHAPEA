@@ -18,6 +18,9 @@ void dbts(){
     Serial.print("\t");
     Serial.print("modSel: ");
     Serial.print(modeSelected);
+    Serial.print("\t");
+    Serial.print("weaSit: ");
+    Serial.print(weatherSituation);
     Serial.println();
   }
   

@@ -1,10 +1,8 @@
-
-
 /*
  * GRATUITOUS SETS LABORATORIES
  * Dallas, TX, USA
  * 
- * NASA CHAPEA TROM (Trash Recepticle On Mars)
+ * NASA CHAPEA COMM ALIGNMENT
  * Johnson Space Center, TX, USA
  * 28 July 2022
  * 
@@ -19,44 +17,34 @@
   #include <MaxMatrix.h>
   #include <avr/pgmspace.h>
   #include <Adafruit_NeoPixel.h>  // WS2812 (NeoPixel) addressable LEDs
-  #include <SoftwareSerial.h>
   
 //-------------- SETTINGS & GLOBAL CONSTANTS -----------------//
 /* Define constraits used by various functions.
  * Variables using '#define' are defined by hardware, and should be left alone.
  * Variables using 'const' can be changed to tune the puzzle.
  */
-  const String myNameIs = "NASA-CHAPEA-TROM: 28 Jul 2022";    // nametag for Serial monitor setup
+  const String myNameIs = "NASA-CHAPEA-CommAlign2: Aug 2022";    // nametag for Serial monitor setup
+
+  #define numPISOregs 2
+  #define gridsInUse 2
+  #define numLEDs 264                                           // single pixel for the spaceKey
   
-  #define gridsInUse 3
-
-  #define numLEDs 1                                           // single pixel for the spaceKey
-  const int bright = 255;                                     // relative brightness of the Key's neoPixel (0-255)
-  const int numOfSettings = 5;
-  const int clicksPerSetting = 3;
-
 //-------------- PIN DEFINITIONS  ----------------------------//
 /* Most of the I/O pins on the Arduino Nano are hard-wired to various components on the MABOB.
  * Pins not used for their standard fuction have header pins for alternate uses.
  */
-
-  #define reClk       2
-  #define reDat       3
-  #define reBtn       4
-  #define neoPixelPin 5
-  const int levPin [2] = {6,7};
-  #define buttonPin   8
-  #define relayPin    9           // trigger pin for relay K1 via 1K resistor & 2N2222 or 2N7000
-  #define hatchPin    10
-  #define audioTxPin  11          // data pin for DF Player Mini, pin 11
-  #define audioRxPin  12          // data pin for DF Player Mini, pin 10
+  #define loadPin     2           // parallel connection to all 74HC165 PISO shift registers, pin 1
+  #define dataInPin   3           // serial connection to nearest 74HC165 PISO shift register, pin 9
+  #define latchPin    4           // parallel connection to all 74HC595 SIPO shift registers, pin 12
+  #define neoPixelPin 5           // data line to WS2812 (NeoPixel) via 470R resistor
+  #define dataOutPin  6           // serial connection to nearest 74HC595 SIPO shift register, pin 14
+  #define clockPin    7           // parallel connection to all shift registers (74HC165 pin 2 / 74HC595 pin 11)
+  #define buttonLED   13
   #define gridClk     A1
   #define gridCS      A2
   #define gridDat     A3
 
 //-------------- CHARACTER SPECS  ----------------------------//
-
-  String settingName[5] = {"TRASH","RECY","3DPW","P.P.B","FECL"};
 
 PROGMEM const unsigned char CH[] = {
   3, 8, B00000000, B00000000, B00000000, B00000000, B00000000, // space
@@ -160,25 +148,36 @@ PROGMEM const unsigned char CH[] = {
 
   MaxMatrix grid(gridDat,gridCS,gridClk,gridsInUse);
   
-  Adafruit_NeoPixel statusLED = Adafruit_NeoPixel(
-    numLEDs, neoPixelPin, NEO_GRB + NEO_KHZ800
+  Adafruit_NeoPixel neoPixel = Adafruit_NeoPixel(
+    numLEDs, neoPixelPin, NEO_RGB + NEO_KHZ800
     );                                                        // neoPixel object name, # of pixels, signal pin, type
-  SoftwareSerial mp3Serial(audioRxPin, audioTxPin);           // RX, TX on Arduino side
 
 //-------------- GLOBAL VARIABLES ----------------------------//
 /* Decrlare variables used by various functions.
  */
-  byte tromStatus;
-  bool somethingNew;
-  byte dialStt = 128;
-  byte dialOld;
-  byte setting;
-  bool btnStt;
-  bool btnOld;
-  bool levStt[2];
-  bool levOld[2];
+  byte PISOdata[numPISOregs];
+  byte PISOprev[numPISOregs];
+
+  int commandMode;
+  byte inputByte;
+  byte inputOld;
+
+  int targetX;
+  int lockedX = 16;
+  int targetY;
+  int lockedY = 4;
+
+  bool dishLock;
+  int accuracy;
+  int accRange;
+  int driftScale;
+  bool commFail;
+
+  uint32_t driftTick;
+  uint32_t inputTick;
 
   byte buffer[10];
+  
 
 //============================================================//
 //============== SETUP =======================================//
@@ -195,31 +194,27 @@ void setup() {
 
 //-------------- PINMODES ------------------------------------//
 
-  pinMode (reClk,INPUT);
-  pinMode (reDat,INPUT);
-  pinMode (reBtn,INPUT);
-  for (int x=0; x<2; x++) pinMode (levPin[x],INPUT);
-  pinMode (buttonPin,INPUT_PULLUP);
-  pinMode (hatchPin,INPUT_PULLUP);
-  pinMode (relayPin,OUTPUT);
-  pinMode (audioRxPin, INPUT);
-  pinMode (audioTxPin, OUTPUT);
+//.............. Shift Registers .............................//
+  pinMode (clockPin, OUTPUT);
+  pinMode (loadPin, OUTPUT);
+  pinMode (dataInPin, INPUT);
+  pinMode (latchPin, OUTPUT);
+  pinMode (dataOutPin, OUTPUT);
+  pinMode (buttonLED, OUTPUT);
 
 //-------------- HARDWARE SETUP -------------------------------//
 
-  attachInterrupt(digitalPinToInterrupt(reClk), readDial, FALLING);
+  randomSeed(analogRead(A0));
+
+  sendSIPO(0);
+  pulsePin(latchPin,10);
 
   grid.init();
-  grid.setIntensity(6);
+  grid.setIntensity(10);
   
-  statusLED.begin();
-  statusLED.setBrightness(bright);
-  statusLED.show();
-
-  mp3Serial.begin(9600);
-  sendAudioCommand(0x0D,0);         // start mp3
-  sendAudioCommand(0x06,30);        // set volume to max
-  sendAudioCommand(0x07,0);         // set EQ to normal
+  neoPixel.begin();
+  neoPixel.setBrightness(255);
+  neoPixel.show();
 
 //-------------- A/V FEEDBACK --------------------------------//
 
@@ -233,79 +228,69 @@ void setup() {
 //============================================================//
 
 void loop() {
+
+//-------------- Update Inputs -------------------------------//
+
+  readPISO(0,1);
   
-//-------------- UPDATE VARIABLES ----------------------------//
+  inputByte = PISOdata[0];
 
-  btnStt = false;
-  if (!digitalRead(buttonPin)) btnStt = true;
+//-------------- Read Command Setting ------------------------//
 
-  for (int lev=0; lev<2; lev++){
-    levStt[lev] = digitalRead(levPin[lev]);
+  if (parsePLC(1)){
+    delay (500);
+    readPISO(1,1);
+    byte doubleCheck = parsePLC(1);
+    delay (500);
+    readPISO(1,1);
+    if (parsePLC(1) && parsePLC(1) == doubleCheck){
+      commandMode = parsePLC(1);
+    }
   }
 
-  if (dialStt != dialOld) somethingNew = true;
-  if (btnStt && !btnOld) somethingNew = true;
+  determineTarget();
 
-//----------------
+//------------------------------------------------------------//
 
-  switch (tromStatus){
-    
-    case 0:                           // sleep mode
-    
-      grid.clear();
-      statusLED.setPixelColor(0,0);
-      statusLED.show();
-      
-      if (somethingNew){
-        tromStatus++;
+  if (bitRead(PISOdata[0],0) == 0) accuracy++;
+  if (bitRead(PISOdata[0],1) == 0) accuracy--;
+  if (accuracy > 7) accuracy = 0;
+  if (accuracy < 0) accuracy = 7;
+  sendSIPO(accuracy);
+  pulsePin(latchPin,10);
+  delay(1500);
+  sendSIPO(0);
+  pulsePin(latchPin,10);
+
+//------------------------------------------------------------//
+/*
+  if (!dishLock){
+    digitalWrite(buttonLED,LOW);
+    printText("MOV",0);
+    aimDish();
+    aimAnimate(0x80FF00);
+    int buttonHold = 0;
+    while(bitRead(inputByte,4) == 0){
+      buttonHold++;
+      delay(100);
+      if (buttonHold >= 10){
+        dishLock = true;
+        scanAnimate();
+        grid.clear();
+        if (accuracy == 100) accRange = 1;
+        else if (accuracy >= 85) accRange = 2;
+        else if (accuracy >= 50) accRange = 3;
+        else if (accuracy > 0) accRange = 4;
+        else accRange = 5;
+        sendSIPO(accuracy);
+              
+        
+        break;
       }
-      break;
-      
-    case 1:                           // ready/select mode
-
-      settingReadout();
-      
-      if (digitalRead(levPin[0])){
-        digitalWrite(relayPin,HIGH);
-        statusLED.setPixelColor(0,200,0,0);
-        statusLED.show();
-      }
-      else if (digitalRead(levPin[1]) && digitalRead(hatchPin) == 0){
-        digitalWrite(relayPin,LOW);
-        statusLED.setPixelColor(0,0,200,0);
-        statusLED.show();
-
-        btnStt = false;
-        if (!digitalRead(buttonPin)) btnStt = true;
-        int holdTime = 0;
-        while(btnStt){
-          holdTime++;
-          delay(100);
-          btnStt = false;
-          if (!digitalRead(buttonPin)) btnStt = true;
-          
-          if (holdTime >= 25){
-            tromStatus++;
-            playTrack(1);
-            break;
-          }
-        }
-      }
-      break;
-
-    case 2:
-
-      printText("PROC",2);
-      delay(3000);
-      tromStatus = 0;
-      break;
-      
+      readPISO(0,1);
+    }
   }
-
-//-
-
-
-//-
+*/
   dbts();
   cycleReset();
 

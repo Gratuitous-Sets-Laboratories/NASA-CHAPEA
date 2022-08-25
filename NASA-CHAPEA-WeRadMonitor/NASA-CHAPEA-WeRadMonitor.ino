@@ -161,6 +161,7 @@ PROGMEM const unsigned char CH[] = {
   byte PISOdata[numPISOregs];
   byte PISOprev[numPISOregs];
 
+  byte weatherSituation;
   int modeSelected;
   byte dialSetting = 128;
   bool dialReady;
@@ -198,6 +199,8 @@ void setup() {
 
   grid.init();
   grid.setIntensity(6);
+  sendSIPO(0);
+  pulsePin(latchPin,10);
 
 //-------------- A/V FEEDBACK --------------------------------//
 
@@ -215,12 +218,23 @@ void loop() {
 
   readPISO(0,1);
   
-  byte plcData = PISOdata[1]%8;
-  for (int bitPos = 0; bitPos < 3; bitPos++){
-    if (bitRead(plcData,bitPos)) bitWrite(plcData,bitPos,0);
-    else bitWrite(plcData,bitPos,0);
-  }
+//  byte plcData = PISOdata[1]%8;
+//  for (int bitPos = 0; bitPos < 3; bitPos++){
+//    if (bitRead(plcData,bitPos)) bitWrite(plcData,bitPos,0);
+//    else bitWrite(plcData,bitPos,0);
+//  }
   byte inputData = PISOdata[0]%32;
+
+  if (parsePLC(1)){
+    delay (500);
+    readPISO(1,1);
+    byte doubleCheck = parsePLC(1);
+    delay (500);
+    readPISO(1,1);
+    if (parsePLC(1) && parsePLC(1) == doubleCheck){
+      weatherSituation = parsePLC(1);
+    }
+  }
 
 //------------------------------------------------------------//
 
@@ -287,22 +301,22 @@ void loop() {
     if (displayData && !sleepMode){
       //grid.clear();
       if      (modeSelected == 1){
-        printText("DAT1",2);
-        sendSIPO(0);
+        printText("DAT1 ",2);
+//        sendSIPO(0);
       }
       else if (modeSelected == 2){
-        printText("DAT2",2);
-        sendSIPO(1);
+        printText("DAT2 ",2);
+//        sendSIPO(1);
       }
       else if (modeSelected == 3){
-        printText("DAT3",2);
-        sendSIPO(2);
+        printText("DAT3 ",2);
+//        sendSIPO(2);
       }
       else if (modeSelected == 4){
         printText("DAT4 ",2);
-        sendSIPO(3); 
+//        sendSIPO(3); 
       }
-    pulsePin(latchPin,10);
+//    pulsePin(latchPin,10);
     }
   }
 //------------------------------------------------------------//
