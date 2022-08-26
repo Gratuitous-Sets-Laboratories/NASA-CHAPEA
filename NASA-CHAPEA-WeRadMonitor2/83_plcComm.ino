@@ -22,6 +22,10 @@ byte plcSignal(int regNum){
 
 //-------------- CHECK FOR PLC MASTER ------------------------//
 
+/*
+ * This function will check for a signal from the PLC from the requested byte
+ * and update the controlMode global variable
+ */
 void updateControlMode(int regNum){
   if (plcSignal[regNum]){
     delay(250);
@@ -46,23 +50,3 @@ void sendToPLC(byte sr_data, int signalLength){
 }
 
 //------------------------------------------------------------//
-
-/*
-byte parsePLC(int regNum){
-  byte returnValue = 0;
-  for (int bitPos = 0; bitPos < 3; bitPos++){
-    if (bitRead(PISOdata[regNum],bitPos)){
-      bitWrite(returnValue,bitPos,0);
-    }
-    else{
-      bitWrite(returnValue,bitPos,1);
-    }
-  }
-  bool bitVal1 = bitRead(returnValue,0);
-  bool bitVal3 = bitRead(returnValue,2);
-  bitWrite(returnValue,0,bitVal3);
-  bitWrite(returnValue,2,bitVal1);
-  
-  return returnValue;
-}
-*/

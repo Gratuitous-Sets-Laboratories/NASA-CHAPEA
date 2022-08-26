@@ -24,10 +24,13 @@
  * Variables using '#define' are defined by hardware, and should be left alone.
  * Variables using 'const' can be changed to tune the puzzle.
  */
-  const String myNameIs = "NASA-CHAPEA-TestBed, Aug 2022";    // nametag for Serial monitor setup
+  const String myNameIs = "NASA-CHAPEA-WeRadMonitor2, Aug 2022";    // nametag for Serial monitor setup
 
   #define numPISOregs 2
   #define gridsInUse 3
+
+  const int numOfSettings = 4;
+  const int clicksPerSetting = 2;
 
 //-------------- PIN DEFINITIONS  ----------------------------//
 /* Most of the I/O pins on the Arduino Nano are hard-wired to various components on the MABOB.
@@ -157,9 +160,9 @@ PROGMEM const unsigned char CH[] = {
   
   byte PISOdata[numPISOregs];
   byte PISOprev[numPISOregs];
+  byte controlMode;
 
-  int controlMode;
-
+//  byte weatherSituation;
   int modeSelected;
   byte dialSetting = 128;
   bool dialReady;
@@ -167,8 +170,6 @@ PROGMEM const unsigned char CH[] = {
   bool sleepMode;
 
   uint32_t lastInputTime;
-
-  byte plcOut;
 
 //============================================================//
 //============== SETUP =======================================//
@@ -199,6 +200,8 @@ void setup() {
 
   grid.init();
   grid.setIntensity(6);
+  sendSIPO(0);
+  pulsePin(latchPin,10);
 
 //-------------- A/V FEEDBACK --------------------------------//
 
@@ -211,26 +214,117 @@ void setup() {
 //============================================================//
 
 void loop() {
-
-  readPISO(0,1);
-
-  if (PISOdata[1] != PISOprev[1]){
   
-  Serial.print(PISOdata[0],BIN);
-  Serial.print("\t");
-  Serial.print(PISOdata[1],BIN);
-  Serial.print("\t");
-  Serial.print(plcSignal(1));
-  Serial.println();
+//-------------- UPDATE VARIABLES ----------------------------//
+
+  readPISO(0,1);                                              // read both PISO registers
+  updateControlMode(1);                                       // check for a command from the PLC on the second register
+  
+//  byte plcData = PISOdata[1]%8;
+//  for (int bitPos = 0; bitPos < 3; bitPos++){
+//    if (bitRead(plcData,bitPos)) bitWrite(plcData,bitPos,0);
+//    else bitWrite(plcData,bitPos,0);
+//  }
+  byte inputData = PISOdata[0]%32;
+
+  if (parsePLC(1)){
+    delay (500);
+    readPISO(1,1);
+    byte doubleCheck = parsePLC(1);
+    delay (500);
+    readPISO(1,1);
+    if (parsePLC(1) && parsePLC(1) == doubleCheck){
+      weatherSituation = parsePLC(1);
+    }
   }
 
-  sendSIPO(0);
-  pulsePin(latchPin,10);
-  plcOut++;
-  if (plcOut == 8) plcOut = 0;
+//------------------------------------------------------------//
 
-//  delay(2000);
+  if (!modeSelected){
+    
+    grid.clear();
+    digitalWrite(powerLED,LOW);
 
-  PISOprev[1] = PISOdata[1];
+    int powerButtonHold = 0;
+    while(bitRead(PISOdata[0],0) == 0){
+      powerButtonHold++;
+      delay (10);
+      if (powerButtonHold >= 100){                  // one secone delay
+        modeSelected++;
+        // animation trigger
+        break;
+      }
+      readPISO(0,0);
+    }
+  }
+
+
+  else {
+    
+//------------------------------------------------------------//
+    
+    digitalWrite(powerLED,HIGH);
+
+    bool reClk = bitRead(inputData,1);
+    bool reDat = bitRead(inputData,2);
+
+    if (reClk && reDat){
+      dialReady = true;
+    }
+    if (dialReady && !reClk && !reDat){
+      dialSetting++;
+      dialReady = false;
+      displayData = false;
+    }
+    else if (dialReady && !reClk && reDat){
+      dialSetting--;
+      dialReady = false;
+      displayData = false;
+    }
+
+//------------------------------------------------------------//
+
+    modeSelected = ((dialSetting) % numOfSettings)+1;
+    if (bitRead(inputData,4) == 0){
+      displayData = true;
+    }
+
+    if(!displayData && !sleepMode){
+      //grid.clear();
+      if      (modeSelected == 1) printText("TEMP",2);
+      else if (modeSelected == 2) printText("WIND",2);
+      else if (modeSelected == 3) printText("PRES",2);
+      else if (modeSelected == 4) printText(" RAD ",1);
+    }
+
+//------------------------------------------------------------//
+
+
+    if (displayData && !sleepMode){
+      //grid.clear();
+      if      (modeSelected == 1){
+        printText("DAT1 ",2);
+//        sendSIPO(0);
+      }
+      else if (modeSelected == 2){
+        printText("DAT2 ",2);
+//        sendSIPO(1);
+      }
+      else if (modeSelected == 3){
+        printText("DAT3 ",2);
+//        sendSIPO(2);
+      }
+      else if (modeSelected == 4){
+        printText("DAT4 ",2);
+//        sendSIPO(3); 
+      }
+//    pulsePin(latchPin,10);
+    }
+  }
+//------------------------------------------------------------//
+
+  if (PISOdata != PISOprev) lastInputTime = millis();
+  dbts();
+  cycleReset();
 
 }

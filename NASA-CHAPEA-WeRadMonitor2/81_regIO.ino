@@ -70,9 +70,9 @@ void readPISO(int fReg, int lReg){
  */
 void sendSIPO(byte sr_data){
 
-  for (int pos=0; pos<8; pos++){                              // for each bit in the byte...
-    bool bitVal = bitRead(sr_data, pos);                      // note its value from the paramater
-    digitalWrite(dataOutPin, bitVal);                         // write it to the data pin
-    pulsePin(clockPin,10);                                    // pulse the clock pin
+  for (int pos=0; pos<8; pos++){
+    bool bitVal = bitRead(sr_data, pos);
+    digitalWrite(dataOutPin, bitVal);
+    pulsePin(clockPin,10);
   }
 }
