@@ -28,11 +28,12 @@
   const String myNameIs = "NASA-CHAPEA-TROM2: 31 Aug 2022";    // nametag for Serial monitor setup
   
   #define gridsInUse 3
-
   #define numLEDs 1                                           // single pixel for the spaceKey
-  const int bright = 255;                                     // relative brightness of the Key's neoPixel (0-255)
+
+  const int processTime[5] = {10,10,10,10,10};        // time in seconds
   const int numOfSettings = 5;
   const int clicksPerSetting = 3;
+  const int sleepDelay = (5*60*1000);
 
 //-------------- PIN DEFINITIONS  ----------------------------//
 /* Most of the I/O pins on the Arduino Nano are hard-wired to various components on the MABOB.
@@ -174,14 +175,15 @@ PROGMEM const unsigned char CH[] = {
   int leverOld;
   bool execStt;
   bool execOld;
-
+//............................................................//
   bool somethingNew;            // used to trigger Serial monitor feedback - made global to wake the system from sleep mode
-  uint32_t newInputTimeStamp    // updated whenever there has been an input, used to trigger sleep mode
+  uint32_t newInputTimeStamp;   // updated whenever there has been an input, used to trigger sleep mode
+  uint32_t hatchLockTimeStamp;
 
   byte tromStatus;              // general mode (sleep, input, process, etc)
+  int countdown;
   
   byte dialStt = 128;           // the "absolute" location of the rotary encodery, arbitrarily starting in the middle
-  byte dialOld;                 // the previous cycle's dialStt
   byte setting;                 // the trash process setting the the TROM has selected
 /*
   bool btnStt;                  // the current state of the EXECUTE button
@@ -224,7 +226,7 @@ void setup() {
   grid.setIntensity(6);
   
   statusLED.begin();
-  statusLED.setBrightness(bright);
+  statusLED.setBrightness(255);
   statusLED.show();
 
   mp3Serial.begin(9600);
@@ -264,6 +266,12 @@ void loop() {
 
   // NOTE: the Rotary Encoder's input comes from the readDial interrupt function
 
+//-------------- SLEEP TIMER ---------------------------------//
+
+  if (millis() >= newInputTimeStamp + sleepDelay){
+    gameStage = 0;
+  }
+
 //============== MAIN "GAME" FLOW ============================//
 
   switch (tromStatus){
@@ -302,49 +310,76 @@ void loop() {
       }
       break;
 //...........................................................//
-// allow for toggling of locking lever
     case 2:
-
-      statusLED.setPixelColor(0,0,200,0);
-      statusLED.show();
-      digitalWrite(relayPin,HIGH);
-    
-      settingReadout();
       
-      if (digitalRead(levPin[0])){
-        digitalWrite(relayPin,HIGH);
-        statusLED.setPixelColor(0,200,0,0);
+      if(!hatchStt){
+        grid.clear();
+        statusLED.setPixelColor(0,100,100,0);
         statusLED.show();
+        digitalWrite(relayPin,HIGH);
       }
-      else if (digitalRead(levPin[1]) && digitalRead(hatchPin) == 0){
-        digitalWrite(relayPin,LOW);
+      else if (leverStt == 1){
+        printText("LOCK",2);
         statusLED.setPixelColor(0,0,200,0);
         statusLED.show();
-
-        btnStt = false;
-        if (!digitalRead(buttonPin)) btnStt = true;
-        int holdTime = 0;
-        while(btnStt){
-          holdTime++;
-          delay(100);
-          if (holdTime >= 25){
-            tromStatus++;
-            break;
-          }
-        }
+        digitalWrite(relayPin,HIGH);
+      }
+      else if (leverStt == -1){
+        //printText("SLCT",2);
+        statusLED.setPixelColor(0,200,0,0);
+        statusLED.show();
+        digitalWrite(relayPin,LOW);
+        hatchLockTimeStamp = millis();
+      }
+      if (millis >= hatchLockTimeStamp + 2500){               // SET-ABLE TIMING VARIABLE
+        gameStage++;
       }
       break;
+//...........................................................//
+    case 3:
 
-    case 2:
-      //
+      if (leverStt == 1){
+        gameStage--;
+        break;
+      }
+      if (!somethingNew && millis() >= newInputTimeStamp + 2000){
+        printText("SLCT",2);
+      }
+      else {
+        settingReadout();
+      }
+      if (execStt){
+        countdown = processTime[setting];
+        //SOUND EFFECTS!
+        gameStage++;
+      }
       break;
-      
+//...........................................................//
+    case 4:
+      // this MIGHT be it?
+      char printDig[3];
+      String printNum;
+      printNum = String(countdown);
+      printNum.toCharArray(printDig,3);
+      printText(printDig,1);
+      // if statement to align numbers?
+
+      delay(1000);
+      countdown--;
+
+      if (countdown <= 0){
+        gameStage++;
+      }
+      break;
+//...........................................................//
+    case 5:
+      printText("COMP",2);
+      delay(2500);
+      gameStage = 1;
+      break;
   }
 
-//-
 
-
-//-
   dbts();
   cycleReset();
 
