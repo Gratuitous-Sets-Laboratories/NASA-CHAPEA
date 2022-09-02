@@ -1,5 +1,3 @@
-
-
 /*
  * GRATUITOUS SETS LABORATORIES
  * Dallas, TX, USA
@@ -15,7 +13,7 @@
 //-------------- LIBRARIES -----------------------------------//
 /* Call all function libraries required by the sketch. 
  */
-  #include <MaxMatrix.h>
+  #include <MaxMatrix.h>          // MAX7219 for 1088AS LED grids
   #include <avr/pgmspace.h>
   #include <Adafruit_NeoPixel.h>  // WS2812 (NeoPixel) addressable LEDs
   #include <SoftwareSerial.h>
@@ -25,39 +23,40 @@
  * Variables using '#define' are defined by hardware, and should be left alone.
  * Variables using 'const' can be changed to tune the puzzle.
  */
-  const String myNameIs = "NASA-CHAPEA-TROM2: 31 Aug 2022";    // nametag for Serial monitor setup
+//.............. Identifier Data .............................//
+  const String myNameIs = "NASA-CHAPEA-TROM";                 // name of sketch
+  const String versionNum = "B.3";                            // version of sketch
+  const String lastUpdate = "2022 Sept 02";                   // last update
   
-  #define gridsInUse 3
-  #define numLEDs 1                                           // single pixel for the spaceKey
-
-  const int processTime[5] = {10,10,10,10,10};        // time in seconds
-  const int numOfSettings = 5;
-  const int clicksPerSetting = 3;
-  const int sleepDelay = (5*60*1000);
-
+//.............. Game Tuning Factors .........................//
+  String settingName[5] = {"TRASH","RECY","3DPW","P.P.B","FECL"}; // names for each procSetting
+  const int processTime[5] = {5,10,15,20,15};                 // time in seconds for each process to complete
+  const int processSound[5] = {1,2,3,4,5};                    // transducer MP3 track number for each process
+  const int sleepDelay = 15;                                  // time since last new input for the TROM to go into sleep mode (in min)
+  
 //-------------- PIN DEFINITIONS  ----------------------------//
 /* Most of the I/O pins on the Arduino Nano are hard-wired to various components on the MABOB.
  * Pins not used for their standard fuction have header pins for alternate uses.
  */
-
-  #define reClk       2
-  #define reDat       3
-  #define reBtn       4
-  #define neoPixelPin 5
-  const int leverPin [2] = {6,7};
-  #define execPin     8
+  #define reClk       2           // rotary encoder clock
+  #define reDat       3           // rotary encoder data
+  #define reBtn       4           // rotary encoder button
+  #define neoPixelPin 5           // WS2812 NeoPixel
+  const int leverPin [2] = {6,7}; // PHES lever
+  #define execPin     8           // execute button
   #define relayPin    9           // trigger pin for relay K1 via 1K resistor & 2N2222 or 2N7000
-  #define hatchPin    10
+  #define hatchPin    10          // hatch limit switch
   #define audioTxPin  11          // data pin for DF Player Mini, pin 11
   #define audioRxPin  12          // data pin for DF Player Mini, pin 10
-  #define gridClk     A1
-  #define gridCS      A2
-  #define gridDat     A3
+  #define gridClk     A1          // MAX7219 1088S clock
+  #define gridCS      A2          // MAX7219 1088S chip select
+  #define gridDat     A3          // MAX7219 1088S data
 
 //-------------- CHARACTER SPECS  ----------------------------//
-
-  String settingName[5] = {"TRASH","RECY","3DPW","P.P.B","FECL"};
-
+/*
+ * The following is the bitmap for each printable character on the 1088AS
+ * #ofCols, #ofRows, 5 byte values for each significant col
+ */
 PROGMEM const unsigned char CH[] = {
   3, 8, B00000000, B00000000, B00000000, B00000000, B00000000, // space
   1, 8, B01011111, B00000000, B00000000, B00000000, B00000000, // !
@@ -156,41 +155,43 @@ PROGMEM const unsigned char CH[] = {
   4, 8, B00001000, B00000100, B00001000, B00000100, B00000000, // ~
 };
 
-//-------------- HARDWARE PARAMETERS -------------------------//
+//============== HARDWARE PARAMETERS =========================//
 
-  MaxMatrix grid(gridDat,gridCS,gridClk,gridsInUse);
+//.............. MAX 7219 1088AS LED Matrix ..................//
+  #define gridsInUse 3                                        // number of grids in the daisy chain
+  MaxMatrix grid(gridDat,gridCS,gridClk,gridsInUse);          // name of grid (various pin numbers)
   
-  Adafruit_NeoPixel statusLED = Adafruit_NeoPixel(
-    numLEDs, neoPixelPin, NEO_GRB + NEO_KHZ800
-    );                                                        // neoPixel object name, # of pixels, signal pin, type
+//.............. WS2812B NeoPixels ...........................//
+  #define numLEDs 1                                           // number of pixels in the daisy chain
+  Adafruit_NeoPixel statusLED = Adafruit_NeoPixel(            // neoPixel object name
+    numLEDs, neoPixelPin, NEO_GRB + NEO_KHZ800);              // # of pixels, signal pin, type
+                                                            
+//.............. Serial for DFPlayer Mini ....................//
   SoftwareSerial mp3Serial(audioRxPin, audioTxPin);           // RX, TX on Arduino side
 
 //-------------- GLOBAL VARIABLES ----------------------------//
 /* Decrlare variables used by various functions.
  */
 //.............. Raw Input Data ..............................//
-  bool hatchStt;
-  bool hatchOld;
-  int leverStt;
-  int leverOld;
-  bool execStt;
-  bool execOld;
-//............................................................//
+  bool hatchStt;                // main hatch (0 = closed, 1 = open)
+  bool hatchOld;                // same from previous cycle
+  int leverStt;                 // PHES lever (-1 = down, 1 = up)
+  int leverOld;                 // same from previous cycle
+  bool execStt;                 // execute button (active LOW)
+  bool execOld;                 // same from previous cycle
+  
+//.............. Derived Input Data ..........................//
+  byte dialStt = 128;           // the "absolute" location of the rotary encodery, arbitrarily starting in the middle
+  byte dialOld;                 // the previous cycle's dialStt
+  
+//.............. Primary Control Variables ...................//
+  byte tromStatus;              // general mode (sleep, input, process, etc)
+  byte procSetting;             // the trash process setting the the TROM has selected
+
+//.............. Misc ........................................//
   bool somethingNew;            // used to trigger Serial monitor feedback - made global to wake the system from sleep mode
   uint32_t newInputTimeStamp;   // updated whenever there has been an input, used to trigger sleep mode
-  uint32_t hatchLockTimeStamp;
-
-  byte tromStatus;              // general mode (sleep, input, process, etc)
-  int countdown;
-  
-  byte dialStt = 128;           // the "absolute" location of the rotary encodery, arbitrarily starting in the middle
-  byte setting;                 // the trash process setting the the TROM has selected
-/*
-  bool btnStt;                  // the current state of the EXECUTE button
-  bool btnOld;                  // the previous state of the EXECUTE button
-  bool levStt[2];               // the current state of the PHES lever
-  bool levOld[2];               // the previous state of the PHES lever
-*/
+  int countdown;                // how far the TROM is in its current trash process
   byte buffer[10];              // used for the MAX7219 1088AS LED grids
 
 //============================================================//
@@ -204,7 +205,11 @@ void setup() {
   Serial.begin(19200);                                        // !! Serial monitor must be set to 19200 baud to read feedback !!
   Serial.println();
   Serial.println("Setup initialized.");
-  Serial.println(myNameIs);
+  Serial.print(myNameIs);                                     // report the sketch name and last update
+  Serial.print(" ver ");
+  Serial.println(versionNum);
+  Serial.print("Last updated on ");
+  Serial.println(lastUpdate);
 
 //-------------- PINMODES ------------------------------------//
 
@@ -218,7 +223,7 @@ void setup() {
   pinMode (audioRxPin, INPUT);
   pinMode (audioTxPin, OUTPUT);
 
-//-------------- HARDWARE SETUP -------------------------------//
+//============== HARDWARE SETUP ===============================//
 
   attachInterrupt(digitalPinToInterrupt(reClk), readDial, FALLING);
 
@@ -254,133 +259,126 @@ void loop() {
   if (hatchStt != hatchOld) somethingNew = true;              // if this is a change from the last cycle, flag it
 
   leverStt = 0;                                               // assume the locking lever is nowhere
-  bool levN = digitalRead(leverPin[0]);                       // mark if it reads north (up)
-  bool levS = digitalRead(leverPin[1]);                       // mark if it reads south (down)
-  if      (levN && !levS) leverStt = 1;                       // if he north reads without the south, it is up
+  bool levN = digitalRead(leverPin[0]);                       // read the North pin of the PHES
+  bool levS = digitalRead(leverPin[1]);                       // read the South pin of the PHES
+  if      (levN && !levS) leverStt = 1;                       // if the north reads without the south, it is up
   else if (levS && !levN) leverStt = -1;                      // othrwise if the south reads without the north, it's down
   if (leverStt != leverOld) somethingNew = true;              // if this is a change from the last cycle, flag it
 
   execStt = false;                                            // assume that the execute button isn't pressed
   if (!digitalRead(execPin)) execStt = true;                  // if it is, mark it as such
   if (execStt != execOld) somethingNew = true;                // if this is a change from the last cycle, flag it
-
-  // NOTE: the Rotary Encoder's input comes from the readDial interrupt function
-
-//-------------- SLEEP TIMER ---------------------------------//
-
-  if (millis() >= newInputTimeStamp + sleepDelay){
-    gameStage = 0;
-  }
+/*
+ * NOTE:
+ * The rotary encoder's input comes from the readDial interrupt function
+ * which will update the 'dialStt' global byte variable
+ */
 
 //============== MAIN "GAME" FLOW ============================//
 
   switch (tromStatus){
 
 //.............. Sleep Mode ..................................//
-    case 0:
+    case 0:                                                   // the TROM is in sleep mode
     
-      grid.clear();
-      statusLED.setPixelColor(0,0);
-      statusLED.show();
-      digitalWrite(relayPin,LOW);
+      grid.clear();                                           // clear the 1088 grids
+      statusLED.setPixelColor(0,0);                           // write the NPX dark
+      statusLED.show();                                       // execute the NPX updates
+      digitalWrite(relayPin,LOW);                             // engage the hatch's maglock
       
-      if (somethingNew){
-        tromStatus++;
+      if (somethingNew){                                      // of any interface has been updated
+        tromStatus++;                                         // advance the tromStatus (to wake up)
+      }
+      break;                                                  // END CASE 0
+//.............. Lock & Unlock Mode ..........................//
+    case 1:                                                   // the TROM is ready for loading
+
+      printText("OPEN",2);                                    // print to the 1088 grids
+
+      if (leverStt == -1){                                    // if the lever is down (lock)...
+        statusLED.setPixelColor(0,200,0,0);                   // write the NPX to red
+        statusLED.show();                                     // execute the NPX updates
+        digitalWrite(relayPin,LOW);                           // engage the hatch's maglock
+      }
+
+      else if (leverStt == 1){                                // otherwise, if the lever is up (unlock)...
+        statusLED.setPixelColor(0,0,200,0);                   // write the NPX to green
+        statusLED.show();                                     // execute the NPX updates
+        digitalWrite(relayPin,HIGH);                          // disengage the hatch's maglock
+      }
+
+      if (hatchStt){                                          // if the hatch has been opened
+        tromStatus++;                                         // advance the tromStatus
       }
       break;
- //.............. (Un)Lock & Load Mode .......................//
-    case 1:
-
-      printText("OPEN",2);
-
-      if (leverStt == -1){
-        statusLED.setPixelColor(0,200,0,0);
-        statusLED.show();
-        digitalWrite(relayPin,LOW);
-      }
-
-      else if (leverStt == 1){
-        statusLED.setPixelColor(0,0,200,0);
-        statusLED.show();
-        digitalWrite(relayPin,HIGH);
-      }
-
-      if (!hatchStt){
-        gameStage++;
-      }
-      break;
-//...........................................................//
+//.............. Load Mode ...................................//
     case 2:
-      
-      if(!hatchStt){
-        grid.clear();
-        statusLED.setPixelColor(0,100,100,0);
-        statusLED.show();
-        digitalWrite(relayPin,HIGH);
+
+      if (hatchStt){
+        printText("LOAD",2);
+        statusLED.setPixelColor(0,100,100,0);                   // write the NPX to amber
+        statusLED.show();                                       // execute the NPX updates
       }
       else if (leverStt == 1){
         printText("LOCK",2);
-        statusLED.setPixelColor(0,0,200,0);
-        statusLED.show();
-        digitalWrite(relayPin,HIGH);
+        statusLED.setPixelColor(0,0,200,0);                   // write the NPX to amber
+        statusLED.show();       
       }
       else if (leverStt == -1){
-        //printText("SLCT",2);
-        statusLED.setPixelColor(0,200,0,0);
-        statusLED.show();
-        digitalWrite(relayPin,LOW);
-        hatchLockTimeStamp = millis();
-      }
-      if (millis >= hatchLockTimeStamp + 2500){               // SET-ABLE TIMING VARIABLE
-        gameStage++;
+        digitalWrite(relayPin,HIGH);
+        printText("SLCT",2);
+        statusLED.setPixelColor(0,200,0,0);                   // write the NPX to amber
+        statusLED.show();                                       // execute the NPX updates
+        tromStatus++;
       }
       break;
-//...........................................................//
+//.............. Select Mode .................................//
     case 3:
 
-      if (leverStt == 1){
-        gameStage--;
-        break;
-      }
-      if (!somethingNew && millis() >= newInputTimeStamp + 2000){
-        printText("SLCT",2);
-      }
-      else {
-        settingReadout();
-      }
-      if (execStt){
-        countdown = processTime[setting];
-        //SOUND EFFECTS!
-        gameStage++;
+      while (millis() < newInputTimeStamp + 500){}
+
+      settingReadout();
+
+      int holdTime = 0;
+      while (!digitalRead(execPin)){
+        holdTime++;
+        delay(10);
+        if (holdTime >= 50){
+          somethingNew = true;
+          countdown = processTime[procSetting];
+          playTrack(processSound[procSetting]);
+          tromStatus++;
+          break;
+        }
       }
       break;
-//...........................................................//
+//.............. Process Mode ................................//
     case 4:
-      // this MIGHT be it?
-      char printDig[3];
-      String printNum;
-      printNum = String(countdown);
-      printNum.toCharArray(printDig,3);
-      printText(printDig,1);
-      // if statement to align numbers?
 
-      delay(1000);
+      char spriteDigit[3];
+      String displayNumber;
+      displayNumber = String(countdown);
+      displayNumber.toCharArray(spriteDigit,3);
+      printText(spriteDigit,1);
+//      printText("s",11);     
       countdown--;
+      delay(1000);
 
       if (countdown <= 0){
-        gameStage++;
+        // finish animation
+        tromStatus = 1;
       }
-      break;
-//...........................................................//
-    case 5:
-      printText("COMP",2);
-      delay(2500);
-      gameStage = 1;
       break;
   }
 
+//-------------- CHECK SLEEP TIMER ---------------------------//
+
+  if (millis() >= newInputTimeStamp + (sleepDelay * 60 * 1000)){
+    tromStatus = 0;
+  }
+
+//============== ROUTINE MAINTAINENCE ========================//
 
   dbts();
   cycleReset();
-
 }

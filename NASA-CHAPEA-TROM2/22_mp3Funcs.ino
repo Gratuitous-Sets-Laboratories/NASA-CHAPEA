@@ -5,10 +5,12 @@
 //-------------- PLAY TRACK BY NUMBER ------------------------//
 /*
  * This is the only function you need to call for basic use of the onboard MP3 player.
- * Regardless of what the plater is currently doing,
+ * Regardless of what the player is currently doing,
  * this function will begin the track called in the trackNum parameter.
+ * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
  * MP3 files should be on the MicroSD card's root directory,
  * and named as a 4-digit number (0001-9999).
+ * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
  */
 void playTrack(word trackNum){
   sendAudioCommand(0x03,trackNum);
@@ -50,5 +52,4 @@ void sendAudioCommand(byte command, word parameter){
   for (byte clb=0; clb<10; clb++){
     mp3Serial.write(commandLine[clb]);
   }
-  
 }

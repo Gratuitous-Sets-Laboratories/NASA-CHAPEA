@@ -18,9 +18,9 @@ void printChar(char c,int column){
 }
 
 void settingReadout(){
-  if      (setting == 0) printText("TRSH",2);
-  else if (setting == 1) printText("RECY",2);
-  else if (setting == 2) printText("3DPW",2);
-  else if (setting == 3) printText("P.I.B",2);
-  else if (setting == 4) printText("FECL",2);
+  if      (procSetting == 0) printText("TRSH",2);
+  else if (procSetting == 1) printText("RECY",2);
+  else if (procSetting == 2) printText("3DPW",2);
+  else if (procSetting == 3) printText("P.I.B",2);
+  else if (procSetting == 4) printText("FECL",2);
 }

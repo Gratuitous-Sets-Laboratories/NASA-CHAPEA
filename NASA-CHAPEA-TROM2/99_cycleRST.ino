@@ -1,6 +1,10 @@
 void cycleReset(){
   
   if (somethingNew) newInputTimeStamp = millis();
-  btnOld = btnStt;
+  
+  hatchOld = hatchStt;
+  leverOld = leverStt;
+  execOld = execStt;
+
   somethingNew = false;
 }
