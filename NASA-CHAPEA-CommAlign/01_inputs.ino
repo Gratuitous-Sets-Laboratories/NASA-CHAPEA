@@ -20,9 +20,11 @@ void readRegisters(){
 /*
  * Rising edge
  */
+/*
 void pulsePin(int pinName, int pulseTime){
   digitalWrite(pinName, LOW);
   delayMicroseconds(pulseTime);
   digitalWrite(pinName, HIGH);
   delayMicroseconds(pulseTime);
 }
+*/

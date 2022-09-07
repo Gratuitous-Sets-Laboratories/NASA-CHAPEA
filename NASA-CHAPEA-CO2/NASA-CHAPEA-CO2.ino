@@ -50,6 +50,12 @@
   #define activeFilt  A1
   #define purgeFilt   A2
 
+//============== HARDWARE PARAMATERS =========================//
+
+  Adafruit_NeoPixel statusLED = Adafruit_NeoPixel(
+    numLEDs, neoPixelPin, NEO_GRB + NEO_KHZ800
+  );                                                          // neoPixel object name, # of pixels, signal pin, type
+  SoftwareSerial mp3Serial(audioRxPin, audioTxPin);           // RX, TX on Arduino side
 
 //-------------- GLOBAL VARIABLES ----------------------------//
 /* Decrlare variables used by various functions.
@@ -105,10 +111,7 @@ void setup() {
 
 //-------------- HARDWARE SETUP -------------------------------//
 
-  Adafruit_NeoPixel statusLED = Adafruit_NeoPixel(
-    numLEDs, neoPixelPin, NEO_GRB + NEO_KHZ800
-  );                                                          // neoPixel object name, # of pixels, signal pin, type
-  SoftwareSerial mp3Serial(audioRxPin, audioTxPin);           // RX, TX on Arduino side
+
 
   statusLED.begin();
   statusLED.setBrightness(255);
@@ -169,9 +172,9 @@ void loop() {
     
     digitalWrite(powerLED, LOW);
     for (int p = 0; p < numLEDs; p++){
- //     statusLED.setPixelColor(p,0);
+      statusLED.setPixelColor(p,0);
     }
- //   statusLED.show();
+    statusLED.show();
 
     int buttonHold = 0;
     while (!powerButtonState){
@@ -199,6 +202,11 @@ void loop() {
   else if (powerOn){
 
     digitalWrite(powerLED,HIGH);
+
+    for (int pxl = 0; pxl < numLEDs; pxl++){
+      statusLED.setPixelColor(pxl,100,100,100);
+    }
+    statusLED.show();
     
     if (cycleActiveFlag && millis() >= cycleBeginTime + 5000){
       cycleActiveFlag = false;

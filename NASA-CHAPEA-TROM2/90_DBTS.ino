@@ -5,7 +5,7 @@ void dbts(){
     Serial.print(hatchStt);
     Serial.print(" | ");
     Serial.print("Btn: ");
-    Serial.print(leverStt);
+    Serial.print(execStt);
     Serial.print(" | ");
     Serial.print("Lvr: ");
     Serial.print(leverStt);
@@ -13,7 +13,10 @@ void dbts(){
     Serial.print("TROM status: ");
     Serial.print(tromStatus);
     Serial.print(" | ");
-    Serial.print("Selected Type");
+    Serial.print("inProc: ");
+    Serial.print(inProc);
+    Serial.print(" | ");
+    Serial.print("Selected Type: ");
     Serial.println(settingName[procSetting]);
   }
 }

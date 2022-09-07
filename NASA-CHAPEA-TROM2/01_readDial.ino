@@ -9,4 +9,6 @@ void readDial(){
 
   procSetting = (dialStt/clicksPerSetting) % numOfSettings;
 
+  somethingNew = true;
+
 }
