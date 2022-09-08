@@ -7,7 +7,7 @@
 /*
  * This function will take the indicated PISO register input
  * and convert it to a 3 bit value
- * from the active low of the PLC
+ * from the active LOW of the PLC
  */
 
 byte plcSignal(int regNum){
@@ -35,6 +35,7 @@ void updateControlMode(int regNum){
     readPISO(regNum,regNum);
     if (plcSignal(regNum) && plcSignal(regNum) == doubleCheck){
       controlMode = doubleCheck;
+      genWx();
     }
   }
 }

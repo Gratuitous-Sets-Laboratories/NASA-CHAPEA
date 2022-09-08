@@ -6,7 +6,6 @@
  * 
  * NASA CHAPEA TROM (Trash Recepticle On Mars)
  * Johnson Space Center, TX, USA
- * 28 July 2022
  * 
  * MABOB I (1.0) architecture
  */
@@ -25,7 +24,10 @@
  * Variables using '#define' are defined by hardware, and should be left alone.
  * Variables using 'const' can be changed to tune the puzzle.
  */
-  const String myNameIs = "NASA-CHAPEA-WeRadTower2: Aug 2022";    // nametag for Serial monitor setup
+//.............. Identifier Data .............................//
+  const String myNameIs = "NASA-CHAPEA-WeaRadTower2";         // name of sketch
+  const String versionNum = "1.1";                            // version of sketch
+  const String lastUpdate = "2022 Sept 07";                   // last update
 
   #define numPISOregs 2
   #define numLEDs 3                                           // single pixel for the spaceKey
@@ -76,7 +78,11 @@ void setup() {
   Serial.begin(19200);                                        // !! Serial monitor must be set to 19200 baud to read feedback !!
   Serial.println();
   Serial.println("Setup initialized.");
-  Serial.println(myNameIs);
+  Serial.print(myNameIs);                                     // report the sketch name and last update
+  Serial.print(" ver ");
+  Serial.println(versionNum);
+  Serial.print("Last updated on ");
+  Serial.println(lastUpdate);
 
 //-------------- PINMODES ------------------------------------//
 
@@ -91,6 +97,8 @@ void setup() {
   pinMode (powerLED, OUTPUT);
 
 //-------------- HARDWARE SETUP -------------------------------//
+
+  randomSeed(analogRead(A0));
   
   statusLED.begin();
   statusLED.setBrightness(255);
@@ -154,8 +162,12 @@ void loop() {
   }
 
   if (powerOn){
+    byte blinkers;
+    for (int b = 0; b < 8; b++){
+      bitWrite(blinkers,b,blinkOrNo(4,7));
+    }
     sendSIPO(0);
-    sendSIPO(255);
+    sendSIPO(blinkers);
     pulsePin(latchPin,10);
 
     if(controlMode == 2){
@@ -178,17 +190,7 @@ void loop() {
     pulsePin(latchPin,10);
   }
 
-/*
-  if (!powerOn){
-    for (int p=0; p<numLEDs; p++){
-      statusLED.setPixelColor(p,0);
-    }
-    statusLED.show();
-    sendLightByte(0);
-  }
 
-  else sendLightByte(255);
-*/
   dbts();
   cycleReset();
 
@@ -207,8 +209,20 @@ void runSeq(){
         statusLED.show();
         delay(500);
       }
-      statusLED.setPixelColor(p,255,0,0);
+      statusLED.setPixelColor(p,200,0,0);
       statusLED.show();
     }
   }
+}
+
+//============== ROLL A D6 ===================================//
+/*
+ * This function will return a boolean T/F based on paramaters:
+ * dif = minimum threshhold of success
+ * die = the size of the die being rolled
+ */
+bool blinkOrNo(int dif, int die){
+  long roll = random(1,die+1);                                // generate a (pseudo)random value between 1 and the die size
+  if (roll >= dif) return true;                               // if the result is at or above the target, return a true
+  else return false;                                          // otherwise return a false
 }

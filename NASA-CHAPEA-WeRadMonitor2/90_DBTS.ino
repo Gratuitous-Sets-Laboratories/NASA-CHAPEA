@@ -5,6 +5,7 @@ void dbts(){
   for (int reg = 0; reg < numPISOregs; reg++){
     if (PISOdata [reg] != PISOprev[reg]){
       somethingNew = true;
+      lastInputTime = millis();
     }
   }
 
@@ -17,10 +18,10 @@ void dbts(){
     Serial.print(dialSetting);
     Serial.print("\t");
     Serial.print("modSel: ");
-    Serial.print(modeSelected);
+    Serial.print(wxDataType);
     Serial.print("\t");
     Serial.print("weaSit: ");
-    Serial.print(weatherSituation);
+    Serial.print(controlMode);
     Serial.println();
   }
   

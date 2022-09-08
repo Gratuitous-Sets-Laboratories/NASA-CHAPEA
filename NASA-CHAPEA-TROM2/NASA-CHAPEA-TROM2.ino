@@ -6,6 +6,9 @@
  * Johnson Space Center, TX, USA
  * 
  * MABOB I (1.0) architecture
+ * 
+ * NOTES:
+ * Add sleep mode
  */
 
 //============== DEFINITIONS & DECLAIRATIONS =================//
@@ -24,15 +27,15 @@
  * Variables using 'const' can be changed to tune the puzzle.
  */
 //.............. Identifier Data .............................//
-  const String myNameIs = "NASA-CHAPEA-TROM";                 // name of sketch
-  const String versionNum = "1.0";                            // version of sketch
-  const String lastUpdate = "2022 Sept 06";                   // last update
+  const String myNameIs = "NASA-CHAPEA-TROM2";                // name of sketch
+  const String versionNum = "1.1";                            // version of sketch
+  const String lastUpdate = "2022 Sept 07";                   // last update
   
 //.............. Game Tuning Factors .........................//
-  String settingName[5] = {"TRASH","RECY","3DPW","P.I.B","FECL"}; // names for each procSetting
-  const int processTime[5] = {30,45,60,90,120};                 // time in seconds for each process to complete
-  const int processSound[5] = {1,1,1,1,1};                    // transducer MP3 track number for each process
-  const int sleepDelay = 15;                                  // time since last new input for the TROM to go into sleep mode (in min)
+  String settingName[5] = {"TRSH","RECY","3DPW","P.I.B","FECL"}; // names for each procSetting
+  const int processTime[5] = {70,75,110,60,25};               // time in seconds for each process to complete
+  const int processSound[5] = {1,2,4,3,5};                    // transducer MP3 track number for each process
+  const int sleepDelay = 10;                                  // time since last new input for the TROM to go into sleep mode (in min)
   
 //-------------- PIN DEFINITIONS  ----------------------------//
 /* Most of the I/O pins on the Arduino Nano are hard-wired to various components on the MABOB.
@@ -391,7 +394,7 @@ void loop() {
       while (!digitalRead(execPin)){
         holdTime++;
         delay(10);
-        if (holdTime >= 50){
+        if (holdTime >= 300){
           somethingNew = true;
           countdown = processTime[procSetting];
           playTrack(processSound[procSetting]);
@@ -405,11 +408,11 @@ void loop() {
   }
 
 //-------------- CHECK SLEEP TIMER ---------------------------//
-/*
-  if (millis() >= newInputTimeStamp + (sleepDelay * 60 * 1000)){
+
+  if (millis() >= newInputTimeStamp + (sleepDelay * 60000)){
     tromStatus = 0;
   }
-*/
+
 //============== ROUTINE MAINTAINENCE ========================//
 
   dbts();
