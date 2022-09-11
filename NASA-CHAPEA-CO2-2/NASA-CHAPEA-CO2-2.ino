@@ -8,6 +8,10 @@
  * Johnson Space Center, TX, USA
  * 
  * MABOB I (1.0) architecture
+ * 
+ * NOTES:
+ * Need solution for Apollo 13 condition
+ * shutdown sound or silence (find STOP cmd for DFP)
  */
 
 //============== DEFINITIONS & DECLAIRATIONS =================//
@@ -25,12 +29,12 @@
  */
 //.............. Identifier Data .............................//
   const String myNameIs = "NASA-CHAPEA-CO2-2";                // name of sketch
-  const String versionNum = "Beta";                           // version of sketch
-  const String lastUpdate = "2022 Sept 07";                   // last update
+  const String versionNum = "1.1";                            // version of sketch
+  const String lastUpdate = "2022 Sept 09";                   // last update
 
 //.............. Game Tuning .................................//
-  const int fillTime = 12;                                    // minutes to gain 1%
-  const int drainTime = 80;                                   // minutes to expend 1%
+  const int fillTime = 5;                                     // minutes to gain 1%
+  const int drainTime = 30;                                   // minutes to expend 1%
   
   const int hethS = 800;
   const int hethN = 200;
@@ -75,7 +79,7 @@
   byte PISOprev[numPISOregs];
   bool somethingNew;
 
-  int filterStatus[2] = {50,50};
+  int filterStatus[2] = {3,95};
   int filterPrev[2];
   
   byte activeFilterNum;
@@ -88,14 +92,13 @@
 
   uint32_t longTickCount;
   uint32_t lastLongTick = millis();
+  int longTickSinceSound;
   bool alarmReady;
   
   bool powerButtonState;
   bool powerButtonPrev;
   bool redButtonState;
   bool redButtonPrev;
-
-
 
   byte controlMode;
   bool powerMode;
@@ -141,6 +144,11 @@ void setup() {
 
   sendSIPO(0);
   pulsePin(latchPin,10);
+
+  mp3Serial.begin(9600);
+  sendAudioCommand(0x0D,0);         // start mp3
+  sendAudioCommand(0x06,30);        // set volume to max
+  sendAudioCommand(0x07,0);         // set EQ to normal
 
 //-------------- A/V FEEDBACK --------------------------------//
 
@@ -203,9 +211,9 @@ void loop() {
     alarmReady = true;
     lastLongTick = millis();
   }
-  
+
 //=============== MAIN GAME FLOW =============================//
-  
+
   if (!powerMode){                                            // POWER IS OFF
     
     digitalWrite(powerLED,LOW);
@@ -231,6 +239,10 @@ void loop() {
 
     digitalWrite(powerLED,HIGH);
     normalOpLEDs();
+    if (longTickSinceSound >= 30){
+      playTrack(3);
+      longTickSinceSound = longTickCount;
+    }
 
 //............. Fill / Drain ..............................
 
@@ -252,14 +264,6 @@ void loop() {
       filterStatus[filt] = constrain(filterStatus[filt],0,100);
     }
 
-//.........reb button .....................................
-    if (!redButton){
-      sendSIPO(3);
-      pulsePin(latchPin,10);
-      delay(1500);
-      sendSIPO(0);
-      pulsePin(latchPin,10);
-    }
 //......................................
 
     for (int filt = 0; filt < 2; filt++){
@@ -273,8 +277,6 @@ void loop() {
     }
     
 //............. power down  ..............................
-
-
 
     int holdTime = 0;
     while(!digitalRead(powerButton)){
@@ -291,6 +293,17 @@ void loop() {
       shutDownAnimation();
     }
   }
+
+//.........red button .....................................
+  if (!redButtonState){
+    Serial.println("RED");
+    sendSIPO(3);
+    pulsePin(latchPin,10);
+    delay(1500);
+    sendSIPO(0);
+    pulsePin(latchPin,10);
+  }
+
 
 
 //=============== ROUTINE MAINTAINENCE =======================//

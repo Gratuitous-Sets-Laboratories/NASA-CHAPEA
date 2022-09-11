@@ -30,6 +30,10 @@ void normalOpLEDs(){
       }
       if (filterStatus[activeFilterNum-1] < 5){               // if it's below 5...
         statusLED.setPixelColor(0,0,250*blinker,0);           // set it to flash red
+        if (alarmReady){
+          playTrack(4);
+          alarmReady = false;
+        }
       }
     }
 //............................................................//
@@ -38,13 +42,17 @@ void normalOpLEDs(){
 
 void startUpAnimation(){
 
+  playTrack(1);
+  digitalWrite(powerLED,HIGH);
   sendSIPO(1);
   pulsePin(latchPin,10);
   delay(1500);
   sendSIPO(0);
   pulsePin(latchPin,10);
+  playTrack(3);
+  longTickSinceSound = longTickCount;
 }
 
 void shutDownAnimation(){
-  
+//  playTrack(2);       // track too lound and often out of context
 }

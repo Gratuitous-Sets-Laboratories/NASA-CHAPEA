@@ -5,7 +5,7 @@ void cycleReset(){
   purgeFilterPrev = purgeFilterNum;
   powerButtonPrev = powerButtonState;
   for (int filt = 0; filt < 2; filt++){
-    filterStatus[filt] = filterPrev[filt];
+    filterPrev[filt] = filterStatus[filt];
   }
   redButtonPrev = redButtonState; 
 
