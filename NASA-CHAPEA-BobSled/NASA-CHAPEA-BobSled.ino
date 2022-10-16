@@ -104,6 +104,8 @@ void setup() {
 
 //-------------- HARDWARE SETUP -------------------------------//
 
+  randomSeed(analogRead(A0));
+
 //.............. MP3 .........................................//
   mp3Serial.begin(9600);            // begin software serial comm (DFPlayer must use the 9600 baud)
   sendAudioCommand(0x0D,0);         // start mp3
@@ -121,6 +123,11 @@ void setup() {
 //============================================================//
 
 void loop() {
+
+  bitWrite(lightByte,7,blinkOrNo(3,5));
+  sendSIPO(lightByte);
+  pulsePin(latchPin);
+  delay (50);
 
 //-------------- REVEIVE INPUTS ------------------------------//
 
@@ -149,9 +156,7 @@ void loop() {
 
 
 //============== MAIN TASK FLOW ==============================//
-
-  sendSIPO();
-
+/*
   switch (processStep){
 //-------------- ---------------------------------------------//
     case 0:                                                   // reset
@@ -275,6 +280,15 @@ void loop() {
 //-------------- ---------------------------------------------//
   }                                                           // EXIT SWITCH CASE
 
+
+
+  if (processStep >= 8){
+    for (int bitPos = 6; bitPos < 7; bitPos++){
+      bitWrite(lightByte,bitPos,blinkOrNo(3,5));
+    }
+  }
+//  sendSIPO();
+*/  
 //-------------- ROUTINE MAINTAINENCE ------------------------//
 
   dbts();

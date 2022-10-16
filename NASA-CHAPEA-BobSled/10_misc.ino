@@ -47,3 +47,15 @@ void blinkLED(int LED){
     bitWrite(lightByte,LED,0);
   }
 }
+
+//============== ROLL A D6 ===================================//
+/*
+ * This function will return a boolean T/F based on paramaters:
+ * dif = minimum threshhold of success
+ * die = the size of the die being rolled
+ */
+bool blinkOrNo(int dif, int die){
+  long roll = random(1,die+1);                                // generate a (pseudo)random value between 1 and the die size
+  if (roll >= dif) return true;                               // if the result is at or above the target, return a true
+  else return false;                                          // otherwise return a false
+}
