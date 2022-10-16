@@ -4,7 +4,6 @@
  * 
  * NASA CHAPEA COMM ALIGNMENT
  * Johnson Space Center, TX, USA
- * 28 July 2022
  * 
  * MABOB I (1.0) architecture
  */
@@ -23,11 +22,16 @@
  * Variables using '#define' are defined by hardware, and should be left alone.
  * Variables using 'const' can be changed to tune the puzzle.
  */
-  const String myNameIs = "NASA-CHAPEA-CommAlign2: Aug 2022";    // nametag for Serial monitor setup
-
+//.............. Identifier Data .............................//
+  const String myNameIs = "NASA-CHAPEA-CommAlign2";           // name of sketch
+  const String versionNum = "Beta";                           // version of sketch
+  const String lastUpdate = "2022 Sept 07";                   // last update
+  
+//.............. Hardware Installed  .........................//
   #define numPISOregs 2
+  #define numSIPOregs 1
   #define gridsInUse 2
-  #define numLEDs 264                                           // single pixel for the spaceKey
+  #define numLEDs 264
   
 //-------------- PIN DEFINITIONS  ----------------------------//
 /* Most of the I/O pins on the Arduino Nano are hard-wired to various components on the MABOB.
@@ -190,7 +194,11 @@ void setup() {
   Serial.begin(19200);                                        // !! Serial monitor must be set to 19200 baud to read feedback !!
   Serial.println();
   Serial.println("Setup initialized.");
-  Serial.println(myNameIs);
+  Serial.print(myNameIs);                                     // report the sketch name and last update
+  Serial.print(" ver ");
+  Serial.println(versionNum);
+  Serial.print("Last updated on ");
+  Serial.println(lastUpdate);
 
 //-------------- PINMODES ------------------------------------//
 
@@ -200,13 +208,16 @@ void setup() {
   pinMode (dataInPin, INPUT);
   pinMode (latchPin, OUTPUT);
   pinMode (dataOutPin, OUTPUT);
+//............................................................//
   pinMode (buttonLED, OUTPUT);
 
-//-------------- HARDWARE SETUP -------------------------------//
+//-------------- HARDWARE SETUP ------------------------------//
 
   randomSeed(analogRead(A0));
 
-  sendSIPO(0);
+  for (int reg = 0; reg < numSIPOregs; reg++){
+    sendSIPO(0);
+  }
   pulsePin(latchPin,10);
 
   grid.init();
@@ -229,22 +240,22 @@ void setup() {
 
 void loop() {
 
-//-------------- Update Inputs -------------------------------//
+//-------------- UPDATE INPUTS -------------------------------//
 
-  readPISO(0,1);
+  readPISO(0,1);                                              // read both PISO registers
   
-  inputByte = PISOdata[0];
+  inputByte = PISOdata[0];                                    // rename control input byte
 
-//-------------- Read Command Setting ------------------------//
+//.............. Read Command Setting ........................//
 
-  if (parsePLC(1)){
-    delay (500);
-    readPISO(1,1);
-    byte doubleCheck = parsePLC(1);
-    delay (500);
-    readPISO(1,1);
-    if (parsePLC(1) && parsePLC(1) == doubleCheck){
-      commandMode = parsePLC(1);
+  if (parsePLC(1)){                                           // if there is data incoming from the PLC...
+    delay (500);                                              // wait 1/2 second
+    readPISO(1,1);                                            // re-read the data
+    byte doubleCheck = parsePLC(1);                           // record the data
+    delay (500);                                              // wait another 1/2 second
+    readPISO(1,1);                                            // re-read the data again
+    if (parsePLC(1) && parsePLC(1) == doubleCheck){           // if the data is consistant and non-zero...
+      commandMode = parsePLC(1);                              // make that the new commandMode
     }
   }
 

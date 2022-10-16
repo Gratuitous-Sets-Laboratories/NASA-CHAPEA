@@ -6,6 +6,9 @@
  * Johnson Space Center, TX, USA
  * 
  * MABOB I (1.0) architecture
+ * 
+ * NOTES:
+ * Add sleep mode
  */
 
 //============== DEFINITIONS & DECLAIRATIONS =================//
@@ -24,15 +27,15 @@
  * Variables using 'const' can be changed to tune the puzzle.
  */
 //.............. Identifier Data .............................//
-  const String myNameIs = "NASA-CHAPEA-TROM";                 // name of sketch
-  const String versionNum = "B.3";                            // version of sketch
-  const String lastUpdate = "2022 Sept 02";                   // last update
+  const String myNameIs = "NASA-CHAPEA-TROM2";                // name of sketch
+  const String versionNum = "1.1";                            // version of sketch
+  const String lastUpdate = "2022 Sept 07";                   // last update
   
 //.............. Game Tuning Factors .........................//
-  String settingName[5] = {"TRASH","RECY","3DPW","P.P.B","FECL"}; // names for each procSetting
-  const int processTime[5] = {5,10,15,20,15};                 // time in seconds for each process to complete
-  const int processSound[5] = {1,2,3,4,5};                    // transducer MP3 track number for each process
-  const int sleepDelay = 15;                                  // time since last new input for the TROM to go into sleep mode (in min)
+  String settingName[5] = {"TRSH","RECY","3DPW","P.I.B","FECL"}; // names for each procSetting
+  const int processTime[5] = {70,75,110,60,25};               // time in seconds for each process to complete
+  const int processSound[5] = {1,2,4,3,5};                    // transducer MP3 track number for each process
+  const int sleepDelay = 10;                                  // time since last new input for the TROM to go into sleep mode (in min)
   
 //-------------- PIN DEFINITIONS  ----------------------------//
 /* Most of the I/O pins on the Arduino Nano are hard-wired to various components on the MABOB.
@@ -185,6 +188,7 @@ PROGMEM const unsigned char CH[] = {
   byte dialOld;                 // the previous cycle's dialStt
   
 //.............. Primary Control Variables ...................//
+  bool inProc;
   byte tromStatus;              // general mode (sleep, input, process, etc)
   byte procSetting;             // the trash process setting the the TROM has selected
 
@@ -215,7 +219,7 @@ void setup() {
 
   pinMode (reClk,INPUT);
   pinMode (reDat,INPUT);
-  pinMode (reBtn,INPUT);
+  pinMode (reBtn,INPUT_PULLUP);
   for (int x=0; x<2; x++) pinMode (leverPin[x],INPUT);
   pinMode (execPin,INPUT_PULLUP);
   pinMode (hatchPin,INPUT_PULLUP);
@@ -251,6 +255,22 @@ void setup() {
 //============================================================//
 
 void loop() {
+
+//-------------- MANUAL RESET --------------------------------//
+
+  int resetHold = 0;
+  while (!digitalRead(reBtn)){
+    resetHold++;
+    delay(10);
+    if (resetHold >= 500){
+      tromStatus = 0;
+      printText("XXXX",1);
+      Serial.println("Manual Reset");
+      dbts();
+      delay(1000);
+      break;
+    }
+  }
   
 //-------------- UPDATE VARIABLES ----------------------------//
   
@@ -276,6 +296,38 @@ void loop() {
 
 //============== MAIN "GAME" FLOW ============================//
 
+  if (inProc){
+
+  tromStatus = 6;
+    
+    char printDig[4];
+    String printNum;
+    printNum=String(countdown);
+    printNum.toCharArray(printDig,4);
+
+    int firstCol;
+    if (countdown < 10) firstCol = 13;
+    else if (countdown < 100) firstCol = 8;
+    else  firstCol = 3;
+    
+    printText(printDig,firstCol);
+    printText("s",18);
+
+
+    Serial.print ("Countdown: ");
+    Serial.println(countdown);
+    
+    delay(1000);
+    countdown--;
+    grid.clear();
+    if (countdown <= 0){
+      printText("DONE",2);
+      inProc = false;
+      tromStatus = 1;
+      delay (1500);
+    }
+  }
+
   switch (tromStatus){
 
 //.............. Sleep Mode ..................................//
@@ -293,49 +345,48 @@ void loop() {
 //.............. Lock & Unlock Mode ..........................//
     case 1:                                                   // the TROM is ready for loading
 
-      printText("OPEN",2);                                    // print to the 1088 grids
+      printText("STBY ",2);                                    // print to the 1088 grids
 
-      if (leverStt == -1){                                    // if the lever is down (lock)...
-        statusLED.setPixelColor(0,200,0,0);                   // write the NPX to red
+      if (!hatchStt){
+        statusLED.setPixelColor(0,100,100,0);                 // write the NPX to red
+        statusLED.show();                                     // execute the NPX updates
+      }
+
+      else if (leverStt == -1){                                    // if the lever is down (lock)...
+        statusLED.setPixelColor(0,0,200,0);                   // write the NPX to red
         statusLED.show();                                     // execute the NPX updates
         digitalWrite(relayPin,LOW);                           // engage the hatch's maglock
       }
 
       else if (leverStt == 1){                                // otherwise, if the lever is up (unlock)...
-        statusLED.setPixelColor(0,0,200,0);                   // write the NPX to green
+        statusLED.setPixelColor(0,200,0,0);                   // write the NPX to green
         statusLED.show();                                     // execute the NPX updates
         digitalWrite(relayPin,HIGH);                          // disengage the hatch's maglock
+        if (execStt){
+          grid.clear();
+          printText("LOCK",2);
+          delay(1500);
+        }
       }
 
-      if (hatchStt){                                          // if the hatch has been opened
-        tromStatus++;                                         // advance the tromStatus
+      if (hatchStt && leverStt == -1){
+        int holdTime = 0;
+        while (!digitalRead(execPin)){
+          delay(10);
+          holdTime++;
+          if (holdTime >= 50){
+            grid.clear();
+            printText("SELC",2);
+            delay(1500);
+            tromStatus++;
+            break;
+          }
+        }
       }
       break;
-//.............. Load Mode ...................................//
-    case 2:
 
-      if (hatchStt){
-        printText("LOAD",2);
-        statusLED.setPixelColor(0,100,100,0);                   // write the NPX to amber
-        statusLED.show();                                       // execute the NPX updates
-      }
-      else if (leverStt == 1){
-        printText("LOCK",2);
-        statusLED.setPixelColor(0,0,200,0);                   // write the NPX to amber
-        statusLED.show();       
-      }
-      else if (leverStt == -1){
-        digitalWrite(relayPin,HIGH);
-        printText("SLCT",2);
-        statusLED.setPixelColor(0,200,0,0);                   // write the NPX to amber
-        statusLED.show();                                       // execute the NPX updates
-        tromStatus++;
-      }
-      break;
 //.............. Select Mode .................................//
-    case 3:
-
-      while (millis() < newInputTimeStamp + 500){}
+    case 2:
 
       settingReadout();
 
@@ -343,37 +394,22 @@ void loop() {
       while (!digitalRead(execPin)){
         holdTime++;
         delay(10);
-        if (holdTime >= 50){
+        if (holdTime >= 300){
           somethingNew = true;
           countdown = processTime[procSetting];
           playTrack(processSound[procSetting]);
-          tromStatus++;
+          tromStatus=1;
+          inProc = true;
+          grid.clear();
           break;
         }
-      }
-      break;
-//.............. Process Mode ................................//
-    case 4:
-
-      char spriteDigit[3];
-      String displayNumber;
-      displayNumber = String(countdown);
-      displayNumber.toCharArray(spriteDigit,3);
-      printText(spriteDigit,1);
-//      printText("s",11);     
-      countdown--;
-      delay(1000);
-
-      if (countdown <= 0){
-        // finish animation
-        tromStatus = 1;
       }
       break;
   }
 
 //-------------- CHECK SLEEP TIMER ---------------------------//
 
-  if (millis() >= newInputTimeStamp + (sleepDelay * 60 * 1000)){
+  if (millis() >= newInputTimeStamp + (sleepDelay * 60000)){
     tromStatus = 0;
   }
 

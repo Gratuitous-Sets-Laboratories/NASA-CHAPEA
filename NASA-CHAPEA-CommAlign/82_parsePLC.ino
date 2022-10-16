@@ -3,7 +3,7 @@
  */
 
 //
-
+/*
 void parsePLC(){
   plcInByte = 0;
   for (int plcBit = 0; plcBit < 3; plcBit++){
@@ -11,3 +11,4 @@ void parsePLC(){
     else bitWrite(plcInByte,plcBit,1);
   }
 }
+*/
