@@ -1,12 +1,9 @@
-
-
 /*
  * GRATUITOUS SETS LABORATORIES
  * Dallas, TX, USA
  * 
  * NASA CHAPEA TROM (Trash Recepticle On Mars)
  * Johnson Space Center, TX, USA
- * 28 July 2022
  * 
  * MABOB I (1.0) architecture
  */
@@ -61,15 +58,15 @@
   bool anCathPrev[2];
   bool somethingNew;
 
-  int controlMode;
-  int processStep = 0;
-  uint32_t pressTime;
-  uint32_t heldTime;
-  uint32_t nextTimeCheck;
-  int fillProgress;
+  int controlMode;                                            // last command from PLC
+  int processStep = 0;                                        // 
+  uint32_t pressTime;                                         // timestamp for button press
+  uint32_t heldTime;                                          // timestamp for button hold completion
+  uint32_t nextTimeCheck;                                     // scheduled millis count for next event
+  int fillProgress;                                           // progress of bottle fill (0-24)
 
-  byte plcMISO;
-  byte lightByte;
+  byte plcMISO;                                               // info to send to PLC
+  byte lightByte;                                             // info to sent to LEDs
 
 //============================================================//
 //============== SETUP =======================================//
@@ -124,86 +121,115 @@ void setup() {
 
 void loop() {
 
-  bitWrite(lightByte,7,blinkOrNo(3,5));
-  sendSIPO(lightByte);
-  pulsePin(latchPin);
-  delay (50);
+//-------------- RECEIVE INPUTS ------------------------------//
 
-//-------------- REVEIVE INPUTS ------------------------------//
-
-  readPISO(0,1);
-  for (int r = 0; r < 2; r++){
+  readPISO(0,1);                                              // read both PISO registers
+  
+  for (int r = 0; r < 2; r++){                                // if the data is new, raise the flag
     if (PISOdata[r] != PISOprev[r]){
       somethingNew = true;
     }
   }
-  
-  for (int e = 0; e < 2; e++){
-    anCath[e] = digitalRead(anCathPin[e]);
-    if (anCath[e] != anCathPrev[e]){
-      somethingNew = true;
+
+  bool bottlesInPlace = true;                                 // assume all 3 HFC bottles are in place
+  for (int btl = 5; btl <8; btl++){                           // for each one...
+    if (bitRead(PISOdata[0],btl)){                            // if it's not there (active LOW)
+      bottlesInPlace = false;                                 // the bottle are not in place
     }
   }
 
-  controlMode = PISOdata[0] % 8;
+  bool anCathInPlace = true;                                  // assume both anode & cathode are in place
+  for (int e = 0; e < 2; e++){                                // for each one...
+    bool bitVal = digitalRead(anCathPin[e]);                  // check if it's there
+    anCath[e] = bitVal;                                       // record that
+    if (bitVal) anCathInPlace = false;                        // if it wasn't there (active LOW), lower the flag
+    if (anCath[e] != anCathPrev[e]){                          // if either has changed...
+      somethingNew = true;                                    // raise that flag
+    }
+  }
+
+//-------------- PARSE PLC COMMAND ------------------------------//
+
+  if (plcSignal(1)){                                            // if there is data incoming from the PLC...
+    delay (500);                                                // wait 1/2 second
+    readPISO(1,1);                                              // re-read the data
+    byte doubleCheck = plcSignal(1);                            // record the data
+    delay (500);                                                // wait another 1/2 second
+    readPISO(1,1);                                              // re-read the data again
+    if (plcSignal(1) && plcSignal(1) == doubleCheck){           // if the data is consistant and non-zero...
+      controlMode = plcSignal(1);                               // make that the new controlMode
+    }
+  }
+  if (!controlMode) controlMode = 1;                            // if there is no controlMode value, make it a 1 (nominal)
+  
 /*
  * Failure Modes
  * 1 = norminal
- * 3 = spark fail
  * 2 = filter
+ * 3 = spark fail
  * 4 = rock jam
  */
 
 
 //============== MAIN TASK FLOW ==============================//
-/*
+
   switch (processStep){
-//-------------- ---------------------------------------------//
+//-------------- RESET ---------------------------------------//
     case 0:                                                   // reset
+      plcMISO = 0;
       fillProgress = 0;
       processStep++;
-//-------------- ---------------------------------------------//
+//-------------- POWER UP ------------------------------------//
     case 1:                                                   // power button
+      plcMISO = 0;
       if(pressAndHold(0,5000)){
         playTrack(1);
         nextTimeCheck = millis() + 15000;
-        processStep++;
+        processStep++;      
       }
        break;
-//-------------- ---------------------------------------------//
+//............................................................//
     case 2:                                                   // power up animation
       blinkLED(0);
       if (millis() >= nextTimeCheck){
-        bitWrite(lightByte,0,1);
-        processStep++;
+        if (!bottlesInPlace){
+          lightByte = 0;
+          processStep = 1;
+        }
+        else{
+          bitWrite(lightByte,0,1);
+          plcMISO = 1;
+          processStep++;
+        }
         somethingNew = true;
       }
       break;
-//-------------- ---------------------------------------------//
+//-------------- AUTOCLAVE -----------------------------------//
     case 3:                                                   // autoclave button
       if(pressAndHold(1,5000)){
-        if (controlMode == 2){                                // filter fail
-          //playTrack(x);
+        if (controlMode == 2){
+          lightByte = 0;
           processStep = 1;
           break;
         }
-        else{                                                 // nominal function
+        else{
           playTrack(2);
           nextTimeCheck = (millis() + 30000);
           processStep++;
         }
       }
       break;
-//-------------- ---------------------------------------------//
+//............................................................//
     case 4:                                                   // autoclave animation
       blinkLED(1);
       if (millis() >= nextTimeCheck){
         bitWrite(lightByte,1,1);
+        plcMISO = 2;
         processStep++;
         somethingNew = true;
       }
       break;
-//-------------- ---------------------------------------------//
+//-------------- AUGER ---------------------------------------//
     case 5:                                                   // auger button
       if(pressAndHold(2,5000)){
         playTrack(3);
@@ -211,23 +237,22 @@ void loop() {
         processStep++;
       }
       break;
-//-------------- ---------------------------------------------//
+//............................................................//
     case 6:                                                   // auger animation
       blinkLED(2);
       if (millis() >= nextTimeCheck){
         bitWrite(lightByte,2,1);
+        plcMISO = 3;
         processStep++;
         somethingNew = true;
       }
       break;
-//-------------- ---------------------------------------------//
+//-------------- ELECTROLYZER --------------------------------//
     case 7:                                                   // electrolyzer button
       if(pressAndHold(3,5000)){
-        if (anCath[0] || anCath[1]){
-          controlMode = 3;
-        }
-        if (controlMode == 3){                                // electrolyzer fail
+        if (!anCathInPlace || (controlMode == 3)){            // electrolyzer fail
           playTrack(6);
+          lightByte = 0;
           processStep = 1;
           break;
         }
@@ -238,28 +263,31 @@ void loop() {
         }
       }
       break;
-//-------------- ---------------------------------------------//
+//............................................................//
     case 8:                                                   // electrolyzer animation
       blinkLED(3);
       if (millis() >= nextTimeCheck){
         bitWrite(lightByte,3,1);
+        plcMISO = 4;
         processStep++;
         somethingNew = true;
       }
       break;
-//-------------- ---------------------------------------------//
+//-------------- FILL ----------------------------------------//
     case 9:                                                   // fill button
       if(pressAndHold(4,5000)){
         playTrack(5);
         nextTimeCheck = millis() + (5*60*1000);
+        plcMISO = 5;
         processStep++;
       }
       break;
-//-------------- ---------------------------------------------//
+//............................................................//
     case 10:                                                  // fill progress
       blinkLED(4);
       if (controlMode == 4){
         playTrack(7);
+        lightByte = 0;
         processStep = 1;
         break;
       }
@@ -276,19 +304,47 @@ void loop() {
 //-------------- ---------------------------------------------//
     case 11:                                                  // done
       bitWrite(lightByte,4,1);
+      plcMISO = 6;
       break;
 //-------------- ---------------------------------------------//
   }                                                           // EXIT SWITCH CASE
 
-
-
-  if (processStep >= 8){
-    for (int bitPos = 6; bitPos < 7; bitPos++){
-      bitWrite(lightByte,bitPos,blinkOrNo(3,5));
+//.............. Power Off ...................................//
+  if (processStep >= 2){
+    if(pressAndHold(0,10000)){
+      processStep = 0;
+      plcMISO = 7;
+      lightByte = 0;
+      sendSIPO(plcMISO);
+      sendSIPO(lightByte);
+      pulsePin(latchPin);
+      delay(10000);
     }
   }
-//  sendSIPO();
-*/  
+
+//............
+
+  if (processStep >= 8 && processStep < 11){
+    for (int bitPos = 6; bitPos <= 7; bitPos++){
+      bitWrite(lightByte,bitPos,blinkOrNo(3,5));
+    }
+    if (!anCathInPlace){
+      playTrack(6);
+      lightByte = 0;
+      processStep = 1;
+    }
+  }
+//-------------- REGISTER OUTPUTS ----------------------------//
+
+ // if (millis() >= heldTime + 1500){
+ //   plcMISO = 0;
+ // }
+  sendSIPO(plcMISO);
+  sendSIPO(lightByte);
+  pulsePin(latchPin);
+  delay (50);
+  
+  
 //-------------- ROUTINE MAINTAINENCE ------------------------//
 
   dbts();

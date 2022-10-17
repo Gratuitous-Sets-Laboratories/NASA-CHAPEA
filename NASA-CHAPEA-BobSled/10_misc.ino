@@ -19,7 +19,7 @@ void sendSIPO(){
 //------------------------------------------------------------//
 
 bool pressAndHold(int btnNum, int holdTime){
-  int reg = 1;
+  int reg = 0;
   if (!bitRead(PISOdata[reg],btnNum) && bitRead(PISOprev[reg],btnNum)){
     pressTime = millis();
     Serial.print("Button ");

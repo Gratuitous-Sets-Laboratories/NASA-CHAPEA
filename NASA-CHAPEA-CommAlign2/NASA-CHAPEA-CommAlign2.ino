@@ -25,7 +25,7 @@
 //.............. Identifier Data .............................//
   const String myNameIs = "NASA-CHAPEA-CommAlign2";           // name of sketch
   const String versionNum = "Beta";                           // version of sketch
-  const String lastUpdate = "2022 Sept 07";                   // last update
+  const String lastUpdate = "2022 Oct 17";                   // last update
   
 //.............. Hardware Installed  .........................//
   #define numPISOregs 2
@@ -161,22 +161,26 @@ PROGMEM const unsigned char CH[] = {
  */
   byte PISOdata[numPISOregs];
   byte PISOprev[numPISOregs];
+  bool somethingNew;
 
-  int commandMode;
-  byte inputByte;
-  byte inputOld;
+  int controlMode;
+  byte inputByte;                 // input from arcade box
+  byte inputOld;                  // prev input from arcade box
 
   int targetX;
   int lockedX = 16;
   int targetY;
   int lockedY = 4;
 
-  bool dishLock;
-  int accuracy;
-  int accRange;
-  int driftScale;
-  bool commFail;
+  byte driftScale;
+  byte driftScalePrev;
 
+  bool dishLock;                  // dish is locked
+  int accuracy;                   // percentage value to display
+  int accRange;                   // relative bracket
+  bool commFail;                  //
+
+  uint32_t nextDrift;
   uint32_t driftTick;
   uint32_t inputTick;
 
@@ -218,7 +222,7 @@ void setup() {
   for (int reg = 0; reg < numSIPOregs; reg++){
     sendSIPO(0);
   }
-  pulsePin(latchPin,10);
+  pulsePin(latchPin);
 
   grid.init();
   grid.setIntensity(10);
@@ -243,6 +247,12 @@ void loop() {
 //-------------- UPDATE INPUTS -------------------------------//
 
   readPISO(0,1);                                              // read both PISO registers
+
+  for (int reg = 0; reg < numPISOregs; reg++){                // for each register...
+    if (PISOdata[reg] != PISOprev[reg]){                      // if there's been a change...
+      somethingNew = true;                                    // raise the somethingNew flag
+    }
+  }
   
   inputByte = PISOdata[0];                                    // rename control input byte
 
@@ -255,14 +265,15 @@ void loop() {
     delay (500);                                              // wait another 1/2 second
     readPISO(1,1);                                            // re-read the data again
     if (parsePLC(1) && parsePLC(1) == doubleCheck){           // if the data is consistant and non-zero...
-      commandMode = parsePLC(1);                              // make that the new commandMode
+      controlMode = parsePLC(1);                              // make that the new controlMode
     }
   }
 
   determineTarget();
 
 //------------------------------------------------------------//
-
+/*
+ * PLC Comm Test code
   if (bitRead(PISOdata[0],0) == 0) accuracy++;
   if (bitRead(PISOdata[0],1) == 0) accuracy--;
   if (accuracy > 7) accuracy = 0;
@@ -272,9 +283,9 @@ void loop() {
   delay(1500);
   sendSIPO(0);
   pulsePin(latchPin,10);
-
+*/
 //------------------------------------------------------------//
-/*
+
   if (!dishLock){
     digitalWrite(buttonLED,LOW);
     printText("MOV",0);
@@ -288,20 +299,29 @@ void loop() {
         dishLock = true;
         scanAnimate();
         grid.clear();
-        if (accuracy == 100) accRange = 1;
-        else if (accuracy >= 85) accRange = 2;
-        else if (accuracy >= 50) accRange = 3;
-        else if (accuracy > 0) accRange = 4;
-        else accRange = 5;
-        sendSIPO(accuracy);
-              
         
-        break;
+        if (accuracy == 100) accRange = 1;
+        else if (accuracy >= 90) accRange = 2;
+        else if (accuracy >= 60) accRange = 3;
+        else if (accuracy >= 40) accRange = 4;
+        else if (accuracy >= 20) accRange = 5;
+        else accRange = 6;
+        
+        uint32_t accColor[7] = {0,1,2,3,4,5,6};
+        for (int pxl = 0; pxl < 8; pxl++){
+          neoPixel.setPixelColor(pxl,accColor);  
+        }
+        neoPixel.show();
+
+        sendSIPO(accRange);
+        pulsePin(latchPin);
+        delay(1500);
+        sendSIPO(0);
+        pulsePin(latchPin);
       }
-      readPISO(0,1);
     }
   }
-*/
+
   dbts();
   cycleReset();
 

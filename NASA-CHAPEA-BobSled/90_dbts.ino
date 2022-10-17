@@ -6,10 +6,13 @@ void dbts(){
   if (somethingNew){
     printPISOdata();
     printAnCath();
-    Serial.print("procStep: ");
+    Serial.print("ctrlMode: ");
+    Serial.print(controlMode);
+    Serial.print("\tprocStep: ");
     Serial.print(processStep);
     Serial.print("\tfillProg: ");
-    Serial.println(fillProgress);
+    Serial.print(fillProgress);
+    Serial.println();
     Serial.println();
   }
 }

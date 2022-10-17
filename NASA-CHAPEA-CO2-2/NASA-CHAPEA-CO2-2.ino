@@ -36,8 +36,8 @@
   const int fillTime = 5;                                     // minutes to gain 1%
   const int drainTime = 30;                                   // minutes to expend 1%
   
-  const int hethS = 800;
-  const int hethN = 200;
+  const int hethS = 800;                                      // hall effect threshhold south
+  const int hethN = 200;                                      // hall effect threshhold north
 
 //.............. Hardware Installed ..........................//
   #define numPISOregs 1
