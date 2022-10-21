@@ -24,8 +24,10 @@
  */
 //.............. Identifier Data .............................//
   const String myNameIs = "NASA-CHAPEA-CommAlign2";           // name of sketch
-  const String versionNum = "Beta";                           // version of sketch
-  const String lastUpdate = "2022 Oct 17";                   // last update
+  const String versionNum = "1.1";                           // version of sketch
+  const String lastUpdate = "2022 Oct 18";                   // last update
+
+  const int sleepDelay = 300000;
   
 //.............. Hardware Installed  .........................//
   #define numPISOregs 2
@@ -183,6 +185,8 @@ PROGMEM const unsigned char CH[] = {
   uint32_t nextDrift;
   uint32_t driftTick;
   uint32_t inputTick;
+  uint32_t sleepTick;
+  bool sleepNow = false;
 
   byte buffer[10];
   
@@ -268,28 +272,40 @@ void loop() {
       controlMode = parsePLC(1);                              // make that the new controlMode
     }
   }
+  if (!controlMode) controlMode = 1;
+
+//.................
+
+  if (PISOdata[0] != PISOprev[0]){
+    sleepNow = false;
+    sleepTick = millis();
+  }
+
+  if (millis() >= sleepTick + sleepDelay){
+    sleepNow = true;
+    digitalWrite(buttonLED,LOW);
+    grid.clear();
+    for (int pxl = 0; pxl < numLEDs; pxl++){
+      neoPixel.setPixelColor(pxl,0);
+    }
+    neoPixel.show();
+  }
+
+//------------------------------------------------------------//
 
   determineTarget();
 
 //------------------------------------------------------------//
-/*
- * PLC Comm Test code
-  if (bitRead(PISOdata[0],0) == 0) accuracy++;
-  if (bitRead(PISOdata[0],1) == 0) accuracy--;
-  if (accuracy > 7) accuracy = 0;
-  if (accuracy < 0) accuracy = 7;
-  sendSIPO(accuracy);
-  pulsePin(latchPin,10);
-  delay(1500);
-  sendSIPO(0);
-  pulsePin(latchPin,10);
-*/
-//------------------------------------------------------------//
 
-  if (!dishLock){
+  if (!dishLock && !sleepNow){
     digitalWrite(buttonLED,LOW);
     printText("MOV",0);
+    for (int pxl = 0; pxl < 8; pxl++){
+      neoPixel.setPixelColor(pxl,0);
+    }
+    neoPixel.show();
     aimDish();
+    if (controlMode == 5) accuracy = 0;
     aimAnimate(0x80FF00);
     int buttonHold = 0;
     while(bitRead(inputByte,4) == 0){
@@ -306,21 +322,88 @@ void loop() {
         else if (accuracy >= 40) accRange = 4;
         else if (accuracy >= 20) accRange = 5;
         else accRange = 6;
-        
-        uint32_t accColor[7] = {0,1,2,3,4,5,6};
-        for (int pxl = 0; pxl < 8; pxl++){
-          neoPixel.setPixelColor(pxl,accColor);  
-        }
-        neoPixel.show();
 
         sendSIPO(accRange);
         pulsePin(latchPin);
         delay(1500);
         sendSIPO(0);
         pulsePin(latchPin);
+
+        uint32_t accColor[7] = {0,0x00DDDD,0x0000FF,0xFF0000,0xBB8800,0x88BB00,0x00FF00};
+        for (int pxl = 0; pxl < 8; pxl++){
+          neoPixel.setPixelColor(pxl,accColor[accRange]);  
+        }
+        neoPixel.show();
+
+        break;
       }
+      readPISO(0,0);
+      inputByte = PISOdata[0];
     }
   }
+
+  else if (!sleepNow){
+    digitalWrite(buttonLED,HIGH);
+    aimAnimate(0x0000F0);
+    
+    char printDig[3];
+    String printNum;
+    printNum=String(accuracy);
+    printNum.toCharArray(printDig,3);
+
+
+    if (accuracy == 100){
+      printText("MAX",0);
+    }
+    else {
+      printText(printDig,1);
+      printText("%",11);
+    }
+//......................................
+    if (somethingNew){
+      int xErr = abs(lockedX-targetX);
+      int yErr = abs(lockedY-targetY);
+      accuracy = 100 - (5 * xErr) - (8 * yErr);
+      accuracy = constrain (accuracy,0,100);
+      if (controlMode == 5) accuracy = 0;
+      if (accuracy == 100) accRange = 1;
+      else if (accuracy >= 90) accRange = 2;
+      else if (accuracy >= 60) accRange = 3;
+      else if (accuracy >= 40) accRange = 4;
+      else if (accuracy >= 20) accRange = 5;
+      else accRange = 6;
+
+      uint32_t accColor[7] = {0,0x00DDDD,0x0000FF,0xFF0000,0xBB8800,0x88BB00,0x00FF00};
+      for (int pxl = 0; pxl < 8; pxl++){
+        neoPixel.setPixelColor(pxl,accColor[accRange]);  
+      }
+      neoPixel.show();
+    }
+ //.......................................................
+    int buttonHold = 0;
+    while(bitRead(inputByte,4) == 0){
+      buttonHold++;
+      delay(100);
+      if (buttonHold >= 10){
+        dishLock = false;
+        grid.clear();
+        break;
+      }
+      readPISO(0,0);
+      inputByte = PISOdata[0];
+    }
+  }
+//...................................................
+
+  if (controlMode == 7){
+      sendSIPO(accRange);
+      pulsePin(latchPin);
+      delay(1500);
+      sendSIPO(0);
+      pulsePin(latchPin);
+      controlMode = 1;
+  }
+
 
   dbts();
   cycleReset();

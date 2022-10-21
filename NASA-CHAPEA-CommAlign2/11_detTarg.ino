@@ -15,27 +15,18 @@ void determineTarget(){
     targetX = random(1,33);             // generate a random X value
     targetY = random(1,8);              // and Y value
   }
+  if (controlMode == 6) controlMode = 1;
 
-//.............. Schedule Drift ..............................//
+//.............. Alignment Drift ..............................//
 
   int driftDelay;
 
-  if (controlMode <= 4){                                      // if the PLC is communicating drift 
-    driftScale = controlMode - 1;                             // set the drift scale (0-3)
-  }
-  
-  if (driftScale &&                                           // if there is an active drift...
-  (!nextDrift || (driftScale != driftScalePrev))){            // and there is no scheduled drift, or there has been a chnage from PLC
-    driftDelay = random(decayMin[driftScale],decayMax[driftScale]);  // set a drift delay in minutes within the above parameters
-    nextDrift = millis() + (driftDelay * 60000);              // schedule the drift for the current time plus the determined delay
-  }
+  if (controlMode > 1 && controlMode <= 4){                   // if the PLC is communicating drift 
+   if (millis() >= nextDrift){
 
-//.............. Execute Drift ...............................//
-
-  if (millis() >= nextDrift){                                 // if the clock has passed the scheculed drift time...        
-
-    nextDrift = millis() + (driftDelay * 60000);              // schedule athe next drift
-
+//Serial.println("Alignment Drift");
+    somethingNew = true;
+    
     int xDrift = random(-1,2);                                // chose a value from -1 to +1
     targetX += xDrift;                                        // add that to the targetX
     if (targetX < 1) targetX = random(2,4);                   // if that puts it too far left, push it right
@@ -45,5 +36,11 @@ void determineTarget(){
     targetY += yDrift;                                        // add that to the targetY
     if (targetY < 0) targetY = random (1,2);                  // keep the target above the horizon 
     else if (targetY > 7) targetY = random (5,6);             // keep the target from going too high
+    
+    driftScale = controlMode - 1;                             // set the drift scale (0-3)
+    driftDelay = random(decayMin[driftScale],decayMax[driftScale]);
+    nextDrift = millis() + (driftDelay * 60000);               // !! change to 60K for minutes !!
+    
+    }
   }
 }

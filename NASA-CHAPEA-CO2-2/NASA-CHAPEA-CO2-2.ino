@@ -10,8 +10,6 @@
  * MABOB I (1.0) architecture
  * 
  * NOTES:
- * Need solution for Apollo 13 condition
- * shutdown sound or silence (find STOP cmd for DFP)
  */
 
 //============== DEFINITIONS & DECLAIRATIONS =================//
@@ -29,8 +27,8 @@
  */
 //.............. Identifier Data .............................//
   const String myNameIs = "NASA-CHAPEA-CO2-2";                // name of sketch
-  const String versionNum = "1.1";                            // version of sketch
-  const String lastUpdate = "2022 Sept 09";                   // last update
+  const String versionNum = "1.2";                            // version of sketch
+  const String lastUpdate = "2022 Oct 18";                   // last update
 
 //.............. Game Tuning .................................//
   const int fillTime = 5;                                     // minutes to gain 1%
@@ -79,7 +77,7 @@
   byte PISOprev[numPISOregs];
   bool somethingNew;
 
-  int filterStatus[2] = {3,95};
+  int filterStatus[3] = {3,95,45};
   int filterPrev[2];
   
   byte activeFilterNum;
@@ -89,6 +87,8 @@
   byte purgeFilterNum;
   byte purgeFilterPrev;
   int lastFillTick;
+
+  byte badFilter;
 
   uint32_t longTickCount;
   uint32_t lastLongTick = millis();
@@ -143,7 +143,7 @@ void setup() {
   statusLED.show();
 
   sendSIPO(0);
-  pulsePin(latchPin,10);
+  pulsePin(latchPin);
 
   mp3Serial.begin(9600);
   sendAudioCommand(0x0D,0);         // start mp3
@@ -179,25 +179,17 @@ void loop() {
   if (purgeFiltRead > hethS) purgeFilterNum = 2;              // if the analog read is above the South mark it is #2
   else if (purgeFiltRead < hethN) purgeFilterNum = 1;         // or if its below the North mark it's #1
 
-//.............. Look for New Data ...........................//
-  if (PISOdata[0] != PISOprev[0]) somethingNew = true;
-  if (activeFilterPrev != activeFilterNum) somethingNew = true;
-  if (purgeFilterPrev != purgeFilterNum) somethingNew = true;
-  if (powerButtonPrev != powerButtonState) somethingNew = true;
-  if (redButtonPrev != redButtonState) somethingNew = true;
-  if (activeFilterNum != activeFilterPrev) somethingNew = true;
-  if (purgeFilterNum != purgeFilterPrev) somethingNew = true;
 
 //--------------- PLC UPDATE ---------------------------------//
-  byte plcMOSI = plcSignal(0);
-  if (plcMOSI){
+
+  if (plcSignal(0)){
     delay (500);
     readPISO(0,0);
-    byte doubleCheck = PISOdata[0];
+    byte doubleCheck = plcSignal(0);
     delay (500);
     readPISO(0,0);
-    if (plcMOSI && plcMOSI == doubleCheck){
-      controlMode = plcMOSI;
+    if (plcSignal(0) && plcSignal(0) == doubleCheck){
+      controlMode = plcSignal(0);
     }
   }
   if (!controlMode) controlMode = 1;
@@ -229,6 +221,11 @@ void loop() {
       if (holdTime >= 300){
         powerMode = true;
         startUpAnimation();                                   // !!
+        sendSIPO(1);
+        pulsePin(latchPin);
+        delay(1500);
+        sendSIPO(0);
+        pulsePin(latchPin);
         break;
       }
     }
@@ -238,21 +235,14 @@ void loop() {
   else {                                                      // POWER IS ON
 
     digitalWrite(powerLED,HIGH);
-    normalOpLEDs();
-    if (longTickSinceSound >= 30){
-      playTrack(3);
-      longTickSinceSound = longTickCount;
+//    normalOpLEDs();
+    if (longTickSinceSound >= 30){                            // if it's been 30 minutes...
+      playTrack(3);                                           // play HVAC sounds
+      longTickSinceSound = longTickCount;                     // update that timestamp
     }
 
-//............. Fill / Drain ..............................
+//.............. Drain ...........................
 
-    int tickFillNum = fillTime;
-    if (longTickCount >= lastFillTick + tickFillNum){
-      if (purgeFilterNum){
-        filterStatus[purgeFilterNum-1]++;
-        lastFillTick = longTickCount;
-      }
-    }
     int tickDrainNum = drainTime;
     if (longTickCount >= lastDrainTick + tickDrainNum){
       if (activeFilterNum){
@@ -263,16 +253,50 @@ void loop() {
     for (int filt = 0; filt < 2; filt++){
       filterStatus[filt] = constrain(filterStatus[filt],0,100);
     }
+    filterStatus[2] = 45;
 
-//......................................
+//............. Fill ..............................
+
+   
+    int tickFillNum = fillTime;
+    if (longTickCount >= lastFillTick + tickFillNum){
+      if (purgeFilterNum){
+        filterStatus[purgeFilterNum-1]++;
+        lastFillTick = longTickCount;
+      }
+    }
+    
+
+//.............. Failure Mode ...................................//
+
+  if (plcSignal(0) == 2){
+    badFilter = activeFilterNum;
+  }
+  if (controlMode == 2){
+    filterStatus[badFilter-1] = 0;
+  }
+
+//.............. Apollo 13 Patch ................................//
+
+  if (controlMode == 3){
+    activeFilterNum = 3;
+    filterStatus[2] = 45;
+    filterStatus[badFilter-1] = 0;
+  }
+
+//.............. LEDs .......
+
+    normalOpLEDs();
+
+//.............. Communicate Full Bottle ........................//
 
     for (int filt = 0; filt < 2; filt++){
       if (filterStatus[filt] == 100 && filterPrev[filt] == 99){
         sendSIPO(2);
-        pulsePin(latchPin,10);
+        pulsePin(latchPin);
         delay(1500);
         sendSIPO(0);
-        pulsePin(latchPin,10);
+        pulsePin(latchPin);
       }
     }
     
@@ -284,13 +308,15 @@ void loop() {
       holdTime++;
       if (holdTime >= 300){
         powerMode = false;
-        shutDownAnimation();                                   // !!
+ //       shutDownAnimation();                                    // !!
+        sendAudioCommand(0x0E,0);                                 // pause audio
         break;
       }
     }
     if (!activeFilterNum){
       powerMode = false;
-      shutDownAnimation();
+ //     shutDownAnimation();
+      sendAudioCommand(0x0E,0);
     }
   }
 
@@ -298,12 +324,21 @@ void loop() {
   if (!redButtonState){
     Serial.println("RED");
     sendSIPO(3);
-    pulsePin(latchPin,10);
+    pulsePin(latchPin);
     delay(1500);
     sendSIPO(0);
-    pulsePin(latchPin,10);
+    pulsePin(latchPin);
   }
 
+
+//.............. Look for New Data ...........................//
+  if (PISOdata[0] != PISOprev[0]) somethingNew = true;
+  if (activeFilterPrev != activeFilterNum) somethingNew = true;
+  if (purgeFilterPrev != purgeFilterNum) somethingNew = true;
+  if (powerButtonPrev != powerButtonState) somethingNew = true;
+  if (redButtonPrev != redButtonState) somethingNew = true;
+//  if (activeFilterNum != activeFilterPrev) somethingNew = true;
+//  if (purgeFilterNum != purgeFilterPrev) somethingNew = true;
 
 
 //=============== ROUTINE MAINTAINENCE =======================//

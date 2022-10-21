@@ -1,6 +1,7 @@
 void dbts(){
 
   if (somethingNew){
+ //   Serial.println(PISOdata[0]);
     Serial.print("PWR ");
     Serial.print(powerMode);
     Serial.print(" - PLC ");

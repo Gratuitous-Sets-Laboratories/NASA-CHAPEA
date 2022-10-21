@@ -8,6 +8,8 @@ void cycleReset(){
 
   driftScalePrev = driftScale;
 
-  bool somethingNew = false;
+  if (controlMode > 5) controlMode = 1;
+
+  somethingNew = false;
 
 }

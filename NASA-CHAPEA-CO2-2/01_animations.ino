@@ -2,7 +2,7 @@
 
 
 void normalOpLEDs(){
-//.............. Blank Status ................................// GRB format
+//.............. Blink Status ................................// GRB format
 
     bool blinker = (millis()/500)%2;
     
@@ -10,6 +10,7 @@ void normalOpLEDs(){
     statusLED.setPixelColor(1,0,200,0);                       // assume purge side is empty and make it red
     
 //.............. Purge LED Status ............................//  
+    
     if (purgeFilterNum){                                      // if the is a filter on the purge side...
       statusLED.setPixelColor(1,100,100,0);                   // assume it's dirty and set it to amber
       if (blinker){
@@ -45,10 +46,10 @@ void startUpAnimation(){
   playTrack(1);
   digitalWrite(powerLED,HIGH);
   sendSIPO(1);
-  pulsePin(latchPin,10);
+  pulsePin(latchPin);
   delay(1500);
   sendSIPO(0);
-  pulsePin(latchPin,10);
+  pulsePin(latchPin);
   playTrack(3);
   longTickSinceSound = longTickCount;
 }

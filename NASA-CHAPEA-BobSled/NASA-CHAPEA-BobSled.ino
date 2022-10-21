@@ -21,8 +21,8 @@
  * Variables using 'const' can be changed to tune the puzzle.
  */
   const String myNameIs = "NASA-CHAPEA-BobSled";              // name of sketch
-  const String verNum = "B.0";                                // version of sketch
-  const String lastUpdate = "2022 Oct 16";                    // last update
+  const String verNum = "1.0";                                // version of sketch
+  const String lastUpdate = "2022 Oct 18";                    // last update
 
   #define numPISOregs 2
 
@@ -63,6 +63,7 @@
   uint32_t pressTime;                                         // timestamp for button press
   uint32_t heldTime;                                          // timestamp for button hold completion
   uint32_t nextTimeCheck;                                     // scheduled millis count for next event
+  uint32_t lastRunSound;                                      // timestamp of last run sound
   int fillProgress;                                           // progress of bottle fill (0-24)
 
   byte plcMISO;                                               // info to send to PLC
@@ -184,7 +185,7 @@ void loop() {
       plcMISO = 0;
       if(pressAndHold(0,5000)){
         playTrack(1);
-        nextTimeCheck = millis() + 15000;
+        nextTimeCheck = millis() + 15000;                     // 15 second power up seq
         processStep++;      
       }
        break;
@@ -214,7 +215,7 @@ void loop() {
         }
         else{
           playTrack(2);
-          nextTimeCheck = (millis() + 30000);
+          nextTimeCheck = (millis() + 300000);                // 5 minute autoclave warmup
           processStep++;
         }
       }
@@ -233,7 +234,8 @@ void loop() {
     case 5:                                                   // auger button
       if(pressAndHold(2,5000)){
         playTrack(3);
-        nextTimeCheck = millis() + 30000;
+        lastRunSound = millis();
+        nextTimeCheck = millis() + 30000;                     // 30 second auger start
         processStep++;
       }
       break;
@@ -258,6 +260,7 @@ void loop() {
         }
         else{                                                 // nominal function
           playTrack(4);
+          lastRunSound = millis();
           nextTimeCheck = millis() + 10000;
           processStep++;
         }
@@ -277,7 +280,8 @@ void loop() {
     case 9:                                                   // fill button
       if(pressAndHold(4,5000)){
         playTrack(5);
-        nextTimeCheck = millis() + (5*60*1000);
+        lastRunSound = millis();
+        nextTimeCheck = millis() + 300000;                    // five minutes
         plcMISO = 5;
         processStep++;
       }
@@ -292,7 +296,7 @@ void loop() {
         break;
       }
       if (millis() >= nextTimeCheck){
-        nextTimeCheck = millis() + 10000;
+        nextTimeCheck = millis() + 300000;                    // five minutes
         fillProgress++;
         somethingNew = true;
       }
@@ -322,7 +326,7 @@ void loop() {
     }
   }
 
-//............
+//............ Anode & Cathode .............................//
 
   if (processStep >= 8 && processStep < 11){
     for (int bitPos = 6; bitPos <= 7; bitPos++){
@@ -332,6 +336,19 @@ void loop() {
       playTrack(6);
       lightByte = 0;
       processStep = 1;
+    }
+  }
+  if (processStep >= 11){
+    bitWrite(lightByte,6,0);
+    bitWrite(lightByte,7,0);
+  }
+
+//.............. Process Run Sounds .........................//
+
+  if (processStep >= 7 && processStep < 11){
+    if (millis()>= lastRunSound + 300000){
+      playTrack(3);
+      lastRunSound = millis();
     }
   }
 //-------------- REGISTER OUTPUTS ----------------------------//

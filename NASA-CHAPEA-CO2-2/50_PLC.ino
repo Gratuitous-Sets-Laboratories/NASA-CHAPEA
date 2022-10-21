@@ -13,7 +13,7 @@
 byte plcSignal(int regNum){
   byte returnValue = 0;
   for (int bitPos = 0; bitPos < 3; bitPos++){
-    if (bitRead(PISOdata[regNum],bitPos) == 0){
+    if (bitRead(PISOdata[0],bitPos) == 0){
       bitWrite(returnValue,bitPos,1);
     }
   }
