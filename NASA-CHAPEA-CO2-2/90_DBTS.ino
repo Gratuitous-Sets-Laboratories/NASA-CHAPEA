@@ -30,6 +30,10 @@ void dbts(){
     Serial.print("\t");
     Serial.print("RED btn ");
     Serial.print(redButtonState);
+
+    Serial.print ("\t");
+    Serial.print (longTickCount); 
+    
     Serial.println();
   }
   

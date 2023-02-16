@@ -185,7 +185,7 @@ PROGMEM const unsigned char CH[] = {
   uint32_t nextDrift;
   uint32_t driftTick;
   uint32_t inputTick;
-  uint32_t sleepTick;
+  uint32_t sleepTick = millis();
   bool sleepNow = false;
 
   byte buffer[10];
@@ -274,14 +274,16 @@ void loop() {
   }
   if (!controlMode) controlMode = 1;
 
-//.................
+//................. sleep
 
   if (PISOdata[0] != PISOprev[0]){
     sleepNow = false;
     sleepTick = millis();
   }
 
-  if (millis() >= sleepTick + sleepDelay){
+//  Serial.println(sleepTick+sleepDelay);
+/*
+  else if (millis() >= sleepTick+sleepDelay){
     sleepNow = true;
     digitalWrite(buttonLED,LOW);
     grid.clear();
@@ -290,7 +292,7 @@ void loop() {
     }
     neoPixel.show();
   }
-
+*/
 //------------------------------------------------------------//
 
   determineTarget();

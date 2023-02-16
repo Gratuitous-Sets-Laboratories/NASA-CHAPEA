@@ -1,6 +1,6 @@
 void showMeTheDigits(){
 
-  float dataNow;
+  int dataNow;
   byte unitMarker;
   
   if      (wxDataType == 1){

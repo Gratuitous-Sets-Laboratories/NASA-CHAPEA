@@ -27,8 +27,8 @@
  */
 //.............. Identifier Data .............................//
   const String myNameIs = "NASA-CHAPEA-CO2-2";                // name of sketch
-  const String versionNum = "1.2";                            // version of sketch
-  const String lastUpdate = "2022 Oct 18";                   // last update
+  const String versionNum = "1.2.1";                          // version of sketch
+  const String lastUpdate = "2022 Dec 15";                    // last update
 
 //.............. Game Tuning .................................//
   const int fillTime = 5;                                     // minutes to gain 1%
@@ -197,6 +197,11 @@ void loop() {
 //=============== LONG MINUTE TIMER ==========================//
 
   int minutes = 1;
+
+  if (millis() < lastLongTick){
+    lastLongTick = 0;
+  }
+  
   if (millis() >= lastLongTick + (minutes * 60000)){            // RESET TO 60K for MINUTES!
     longTickCount++;
     somethingNew = true;
@@ -236,7 +241,7 @@ void loop() {
 
     digitalWrite(powerLED,HIGH);
 //    normalOpLEDs();
-    if (longTickSinceSound >= 30){                            // if it's been 30 minutes...
+    if (longTickCount >= longTickSinceSound + 30){            // if it's been 30 minutes...
       playTrack(3);                                           // play HVAC sounds
       longTickSinceSound = longTickCount;                     // update that timestamp
     }

@@ -44,10 +44,10 @@ void updateControlMode(int regNum){
 
 void sendToPLC(byte sr_data, int signalLength){
   sendSIPO(sr_data);
-  pulsePin(latchPin,10);
+  pulsePin(latchPin);
   delay(signalLength);
   sendSIPO(0);
-  pulsePin(latchPin,10);
+  pulsePin(latchPin);
 }
 
 //------------------------------------------------------------//

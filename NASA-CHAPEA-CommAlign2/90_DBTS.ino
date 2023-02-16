@@ -1,6 +1,7 @@
 void dbts(){
 
   if (somethingNew){
+    Serial.println (sleepTick);
 //    Serial.print (PISOdata[0],BIN);
 //    Serial.print ("\t");
 //    Serial.print (PISOdata[1],BIN);

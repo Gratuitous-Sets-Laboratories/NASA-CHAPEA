@@ -23,13 +23,14 @@
  */
 //.............. Identifier Data .............................//
   const String myNameIs = "NASA-CHAPEA-WeRadMon3";            // name of sketch
-  const String versionNum = "1.0";                            // version of sketch
-  const String lastUpdate = "2022 Sept 09";                   // last update
+  const String versionNum = "1.1";                            // version of sketch
+  const String lastUpdate = "2022 Dec 14";                   // last update
 
 //.............. Game Tuning .................................//
 
-  String settingName[4] = {"WIND","TEMP","PRES"," RAD "};
-
+//  String settingName[4] = {"WIND","TEMP","PRES"," RAD "};
+  int shortButtonTime = 15;
+  int sleepMinutes = 5;
 
 //-------------- PIN DEFINITIONS  ----------------------------//
 /* Most of the I/O pins on the Arduino Nano are hard-wired to various components on the MABOB.
@@ -41,7 +42,13 @@
   #define latchPin    4           // parallel connection to all 74HC595 SIPO shift registers, pin 12
   #define dataOutPin  6           // serial connection to nearest 74HC595 SIPO shift register, pin 14
   #define clockPin    7           // parallel connection to all shift registers (74HC165 pin 2 / 74HC595 pin 11)
-  #define powerLED    10          // trigger pin for piezoelectric buzzer via 1K resistor & 2N2222 or 2N7000
+
+  #define powerBtn    8
+  #define selectBtn   9
+  #define upToggle    11
+  #define dnToggle    12
+  
+  #define powerLED    10          
   #define gridClk     A1
   #define gridCS      A2
   #define gridDat     A3
@@ -148,7 +155,7 @@ PROGMEM const unsigned char CH[] = {
 
 //-------------- HARDWARE PARAMETERS -------------------------//
 
-  #define numPISOregs 2
+  #define numPISOregs 1
 
   #define gridsInUse 3
   MaxMatrix grid(gridDat,gridCS,gridClk,gridsInUse);
@@ -156,27 +163,31 @@ PROGMEM const unsigned char CH[] = {
 //-------------- GLOBAL VARIABLES ----------------------------//
 /* Decrlare variables used by various functions.
  */
+
+  bool somethingNew;
+ 
   byte buffer[10];
 
-  float windNow = 0;
-//  float windPrev;
-  float tempNow = -80;
-//  float tempPrev;
-  float presNow = .1;
-//  float presPrev;
-  float radNow = 0;
-//  float radPrev;
+  int windNow = 0;
+  int tempNow = -80;
+  int presNow = 742;
+  int radNow = 201;
   
   byte PISOdata[numPISOregs];
   byte PISOprev[numPISOregs];
   byte controlMode;
   int wxDataType;
-  byte dialSetting = 128;
-  bool dialReady;
   bool displayData;
   uint32_t lastInputTime;
   uint32_t lastMinTick;
-
+/*
+  bool upTogNow;
+  bool upTogPrv;
+  bool dnTogNow;
+  bool dnTogPrv;
+  bool selBtnNow;
+  bool selBtnPrv;
+*/
 //============================================================//
 //============== SETUP =======================================//
 //============================================================//
@@ -204,12 +215,15 @@ void setup() {
   pinMode (dataOutPin, OUTPUT);
 
 //.............. Other Pin Modes .............................//
+  pinMode (powerBtn, INPUT_PULLUP);
+  pinMode (selectBtn, INPUT_PULLUP);
+  pinMode (upToggle, INPUT_PULLUP);
+  pinMode (dnToggle, INPUT_PULLUP);
   pinMode (powerLED, OUTPUT);
 
 //-------------- HARDWARE SETUP -------------------------------//
 
   randomSeed(analogRead(A0));
-  wxDataType = 1;
   genWx();
   wxDataType = 0;
 
@@ -217,7 +231,7 @@ void setup() {
   grid.setIntensity(6);
   
   sendSIPO(0);
-  pulsePin(latchPin,10);
+  pulsePin(latchPin);
 
 //-------------- A/V FEEDBACK --------------------------------//
 
@@ -233,8 +247,8 @@ void loop() {
   
 //-------------- UPDATE VARIABLES ----------------------------//
 
-  readPISO(0,1);                                              // read both PISO registers
-  updateControlMode(1);                                       // check for a command from the PLC on the second register
+  readPISO(0,0);                                              // read PLC PISO register
+  updateControlMode(0);                                       // check for a command from the PLC on the second register
   if (!controlMode) controlMode = 1;                          // default to basic operation
 
 //-------------- MAD SCIENCE WEATHER CONTROL! ----------------//
@@ -252,20 +266,13 @@ void loop() {
     grid.clear();                                             // clear the grid
     digitalWrite(powerLED,LOW);                               // turn the power button off
 
-//.............. Power Button Wake ...........................//
-    int holdTime = 0;                                         // reset hold time               
-    while(bitRead(PISOdata[0],0) == 0){                       // while the power button is held down...
-      holdTime++;                                             // incriment the counter
-      delay (10);                                             // wait 0.01 sconds 
-      if (holdTime >= 50){                                    // if it's been 1/2 second...
-        wxDataType++;                                         // make data type non-zero
-        printText("Hello",1);                                 // be friendly
-        delay(1000);                                          // wait a sec
-        grid.clear();                                         // clear the screen
-        printText("STBY",2);
-        break;                                                // exit the while loop
-      }
-      readPISO(0,0);                                          // re-read the first PISO register
+    if (pressAndHold(powerBtn,1500,0)){                        // wake
+      wxDataType++;
+      digitalWrite(powerLED,HIGH);
+      lastInputTime = millis();
+      printText("Hello",1);                                   // be friendly
+      delay(1000);                                            // wait a sec
+      grid.clear();                                           // clear the screen
     }
   }
 
@@ -274,53 +281,53 @@ void loop() {
   else {                                                      // otherwise (there IS a selected weather data type)...
     digitalWrite(powerLED,HIGH);                              // illuminate the power button
 
-//.............. Ersatz Rotary Encoder .......................//
-                                                    
-    readPISO(0,0);
-    bool reBtn = bitRead(PISOdata[0],3);
-    while (!reBtn){
-      ersatzRotaryEncoder();
-      reBtn = bitRead(PISOdata[0],3);
+//.............. Menu Toggler ................................//
+
+    if (pressAndHold(upToggle,shortButtonTime,0)){
+      lastInputTime = millis();
+      wxDataType--;
+      if (wxDataType < 1) wxDataType = 4;
+      grid.clear();
+      displayData = false;
     }
 
-//.............. Display .....................................//
-
-    if (bitRead(PISOdata[0],4) == 0){
-      displayData = true;
-//      genWx();
+    if (pressAndHold(dnToggle,shortButtonTime,0)){
       lastInputTime = millis();
+      wxDataType++;
+      if (wxDataType > 4) wxDataType = 1;
+      grid.clear();
+      displayData = false;
+    }
+
+    if (pressAndHold(selectBtn,shortButtonTime,0)){
+      lastInputTime = millis();
+      if (!displayData) displayData = true;
+      else displayData = false;
       grid.clear();
     }
-    
-    if (displayData){                                         // otherwise it's data time!..
+
+    if (!displayData){
+      if      (wxDataType == 1) printText("WIND",2);            // didsplay the following data types based on the dial
+      else if (wxDataType == 2) printText("TEMP",1);
+      else if (wxDataType == 3) printText("PRES",2);
+      else if (wxDataType == 4) printText(" RAD ",1);
+    }
+
+    else {                                                      // if displayData *is* true...
       showMeTheDigits();
     }
   
 //.............. Go The F*ck to Sleep ........................//
 
-    int holdTime = 0;                                         // reset hold time               
-    while(bitRead(PISOdata[0],0) == 0){                       // while the power button is held down...
-      holdTime++;                                             // incriment the counter
-      delay (10);                                             // wait 0.01 sconds 
-      if (holdTime >= 50){                                    // if it's been 1/2 second...
-        wxDataType = 0;                                       // set data mode to sleepy
-        displayData = false;
-        printText("Sleep",0);                                 // be friendly
-        delay(1500);                                          // wait a sec
-        grid.clear();                                         // clear the screen
-        break;                                                // exit the while loop
-      }
-      readPISO(0,0);                                          // re-read the first PISO register
-    }
-
-    if (millis() >= lastInputTime + 300000){                  // if it's been 5 minutes since an input...
-      wxDataType = 0;                                         // go to sleep
+    if (pressAndHold(powerBtn,1500,0) || millis() >= lastInputTime + sleepMinutes * 60000){
+      wxDataType = 0;                                       // set data mode to sleepy
       displayData = false;
-      printText("Sleep",0);
-      delay(1500);
-      grid.clear();
+      printText("Sleep",0);                                 // be friendly
+      delay(1500);                                          // wait a sec
+      grid.clear();                                         // clear the screen
     }
   }
+
 //------------------------------------------------------------//
 
   dbts();
