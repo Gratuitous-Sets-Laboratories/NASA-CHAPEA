@@ -12,8 +12,8 @@ void dbts(){
     Serial.print("\t");
 //    Serial.print(PISOdata[1],BIN);
 //    Serial.print("\t");
-    Serial.print("PLC Sig");
-    Serial.print(plcSignal(1));
+    Serial.print("PLC Sig: ");
+    Serial.print(plcSignal(0));
     Serial.print("\t");
     Serial.print("modSel: ");
     Serial.print(wxDataType);
@@ -32,6 +32,9 @@ void dbts(){
     Serial.print("\t");
     Serial.print("weaSit: ");
     Serial.print(controlMode);
+    Serial.print("\t");
+    Serial.print("ttm: ");
+    Serial.print(timeTempMod());
     Serial.println();
     
   }

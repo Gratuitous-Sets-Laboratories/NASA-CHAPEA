@@ -23,8 +23,8 @@
  */
 //.............. Identifier Data .............................//
   const String myNameIs = "NASA-CHAPEA-WeRadMon3";            // name of sketch
-  const String versionNum = "1.1";                            // version of sketch
-  const String lastUpdate = "2022 Dec 14";                   // last update
+  const String versionNum = "1.2";                            // version of sketch
+  const String lastUpdate = "2023 Feb 19";                    // last update
 
 //.............. Game Tuning .................................//
 
@@ -169,10 +169,10 @@ PROGMEM const unsigned char CH[] = {
   byte buffer[10];
 
   int windNow = 0;
-  int tempNow = -80;
+  int tempNow = -60;
   int presNow = 742;
   int radNow = 201;
-  
+
   byte PISOdata[numPISOregs];
   byte PISOprev[numPISOregs];
   byte controlMode;
@@ -180,6 +180,10 @@ PROGMEM const unsigned char CH[] = {
   bool displayData;
   uint32_t lastInputTime;
   uint32_t lastMinTick;
+
+  bool risingTempCycle = true;
+  int minutesIntoTempCycle;
+
 /*
   bool upTogNow;
   bool upTogPrv;
@@ -253,7 +257,14 @@ void loop() {
 
 //-------------- MAD SCIENCE WEATHER CONTROL! ----------------//
 
-  if (millis() >= lastMinTick + 60000){                       // if a minute has elapsed since the last weather fluctuiation...
+  if (plcSignal(0) && plcSignal(0) <= 3){                     // if there is a new signal withing "normal" parameters...
+    risingTempCycle = true;                                   // set the clock no noon (rising temp)
+    minutesIntoTempCycle = 360;                               // and 360 minutes into rising temp
+  }
+
+  if (millis() >= lastMinTick + 60000){                       // if a minute has elapsed since the last weather fluctuation...
+    somethingNew = true;
+    timeTempCycle();
     genWx();                                                  // generate new weather data (meniacal laugh)
     dbts();                                                   // report to Serial monitor
     lastMinTick = millis();                                   // update the timestamp

@@ -6,9 +6,9 @@ void genWx(){
   int windVar[7] = {1,    5,    10,    1,    1,    1,    1};
   int windInc = 1;
 
-  int tempMin[7] = {-85, -92,   3,    4,    5,    6,    7};
-  int tempMax[7] = {-75, -85,   3,    4,    5,    6,    7};
-  int tempVar[7] = {1,   2,     3,    5,    5,    5,    20};
+  int tempMin[7] = {-70,  -70,   -80,   -50,  -50,  -40,  0};
+  int tempMax[7] = {-50,  -50,   -60,   -30,  -30,  -30,  60};
+  int tempVar[7] = {1,    1,     1,     1,    1,    1,    4};
   int tempInc = 1;
 
   int presMin[7] = {700,  800,  900,  750,  700,   700,  50};
@@ -30,6 +30,7 @@ void genWx(){
   deltaData = random(tempVar[controlMode-1]*-1, tempVar[controlMode-1]+1) * tempInc;
   tempNow += deltaData;
   tempNow = constrain(tempNow,tempMin[controlMode-1],tempMax[controlMode-1]);
+  tempNow += timeTempMod();
 
   deltaData = random(presVar[controlMode-1]*-1, presVar[controlMode-1]+1) * presInc;
   presNow += deltaData;
@@ -39,4 +40,13 @@ void genWx(){
   radNow += deltaData;
   radNow = constrain(radNow,radMin[controlMode-1],radMax[controlMode-1]);
 
+}
+
+int timeTempMod(){
+  if (risingTempCycle){
+    return (minutesIntoTempCycle - 360) / 10;
+  }
+  else{
+    return (360 - minutesIntoTempCycle) / 10;
+  }
 }
