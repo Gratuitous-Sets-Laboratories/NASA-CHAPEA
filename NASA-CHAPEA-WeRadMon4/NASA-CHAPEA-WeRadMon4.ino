@@ -244,7 +244,14 @@ void loop() {
 
   readPISO(0,0);                                              // read PLC PISO register
   updateControlMode(0);                                       // check for a command from the PLC on the second register
-  if (!controlMode) controlMode = 1;                          // default to basic operation
+  if (!controlMode || controlMode > 6) controlMode = 1;       // default to basic operation
+
+  for (int reg = 0; reg < numPISOregs; reg++){
+    if (PISOdata [reg] != PISOprev[reg]){
+      somethingNew = true;
+      lastInputTime = millis();
+    }
+  }
 
 //-------------- MAD SCIENCE WEATHER CONTROL! ----------------//
 
@@ -316,6 +323,9 @@ void loop() {
     }
 
     else {                                                      // if displayData *is* true...
+      if (somethingNew){
+        grid.clear();
+      }
       showMeTheDigits();
     }
   

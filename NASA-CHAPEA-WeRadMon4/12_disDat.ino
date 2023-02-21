@@ -20,16 +20,16 @@ void showMeTheDigits(){
     unitMarker = 192;
   }
 
-//  if (controlMode <= 6){
+  if (controlMode < 6){
     char printDig[6];
     String printNum;
     printNum=String(dataNow);
     printNum.toCharArray(printDig,6);
     printText(printDig,1);
-//  }
-//  else{
-//    printText("Null",1);
-//  }
+  }
+  else{
+    printText("Null",1);
+  }
   
   grid.setColumn(22,unitMarker);
   grid.setColumn(23,unitMarker);

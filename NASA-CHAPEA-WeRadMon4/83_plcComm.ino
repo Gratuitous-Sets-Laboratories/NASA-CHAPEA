@@ -27,8 +27,7 @@ byte plcSignal(int regNum){
  * and update the controlMode global variable
  */
 void updateControlMode(int regNum){
-  if (plcSignal[regNum] == 7) return;
-  else if (plcSignal[regNum]){
+  if (plcSignal[regNum]){
     delay(250);
     readPISO(regNum,regNum);
     byte doubleCheck = plcSignal(regNum);
