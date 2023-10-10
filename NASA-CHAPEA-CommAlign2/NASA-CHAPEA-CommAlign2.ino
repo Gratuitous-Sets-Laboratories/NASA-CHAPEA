@@ -24,10 +24,10 @@
  */
 //.............. Identifier Data .............................//
   const String myNameIs = "NASA-CHAPEA-CommAlign2";           // name of sketch
-  const String versionNum = "1.1";                           // version of sketch
-  const String lastUpdate = "2022 Oct 18";                   // last update
+  const String versionNum = "1.12";                           // version of sketch
+  const String lastUpdate = "2023 Feb 22";                    // last update
 
-  const int sleepDelay = 300000;
+  const int sleepDelay = 15000;
   
 //.............. Hardware Installed  .........................//
   #define numPISOregs 2
@@ -280,6 +280,15 @@ void loop() {
     sleepNow = false;
     sleepTick = millis();
   }
+  if (millis() >= sleepTick + sleepDelay){
+    sleepNow = true;
+    digitalWrite(buttonLED,LOW);
+    grid.clear();
+    for (int pxl = 0; pxl < numLEDs; pxl++){
+      neoPixel.setPixelColor(pxl,0);
+    }
+    neoPixel.show();
+  }
 
 //  Serial.println(sleepTick+sleepDelay);
 /*
@@ -315,6 +324,7 @@ void loop() {
       delay(100);
       if (buttonHold >= 10){
         dishLock = true;
+        sendSIPO(0);
         scanAnimate();
         grid.clear();
         
@@ -388,7 +398,12 @@ void loop() {
       delay(100);
       if (buttonHold >= 10){
         dishLock = false;
+        sendSIPO(7);
+        pulsePin(latchPin);
         grid.clear();
+        delay(1000);
+        sendSIPO(0);
+        pulsePin(latchPin);
         break;
       }
       readPISO(0,0);

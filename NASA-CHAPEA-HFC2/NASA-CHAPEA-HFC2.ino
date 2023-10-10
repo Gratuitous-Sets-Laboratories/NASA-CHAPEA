@@ -4,7 +4,7 @@
  * GRATUITOUS SETS LABORATORIES
  * Dallas, TX, USA
  * 
- * NASA CHAPEA TROM (Trash Recepticle On Mars)
+ * NASA CHAPEA Hydrogen Fuel Cell
  * Johnson Space Center, TX, USA
  * 28 July 2022
  * 
@@ -19,7 +19,6 @@
   #include <MaxMatrix.h>
   #include <avr/pgmspace.h>
   #include <Adafruit_NeoPixel.h>  // WS2812 (NeoPixel) addressable LEDs
-  #include <SoftwareSerial.h>
   
 //-------------- SETTINGS & GLOBAL CONSTANTS -----------------//
 /* Define constraits used by various functions.
@@ -27,12 +26,12 @@
  * Variables using 'const' can be changed to tune the puzzle.
  */
 //.............. Identifier Data .............................//
-  const String myNameIs = "NASA-CHAPEA-HFC2";            // name of sketch
-  const String versionNum = "1.0";                            // version of sketch
-  const String lastUpdate = "2022 Sept 09";                   // last update
+  const String myNameIs = "NASA-CHAPEA-HFC2";                 // name of sketch
+  const String versionNum = "1.1";                            // version of sketch
+  const String lastUpdate = "2023 FEB 23";                    // last update
 
   #define numPISOregs 1
-  #define numLEDs 27                                           // single pixel for the spaceKey
+  #define numLEDs 27                                          //
  
 
 //-------------- PIN DEFINITIONS  ----------------------------//
@@ -53,12 +52,6 @@
 
   const int hfcPin[3] = {A0,A1,A2};
   const int startButton[3] = {A3,A4,A5};
-
-//-------------- CHARACTER SPECS  ----------------------------//
-
-  String settingName[5] = {"TRASH","RECY","3DPW","P.P.B","FECL"};
-
-
 
 //-------------- HARDWARE PARAMETERS -------------------------//
   
@@ -87,6 +80,7 @@
   byte bottleChargeLevel[8] = {0,255,255,255,255,255,255,255};
   int bottleLastInUse[8];
   int lastDischargeTime;
+  byte badBottle = 0;
 
   int minuteCounter;
   uint32_t lastMinuteTick;
@@ -130,6 +124,11 @@ void setup() {
   statusLED.begin();
   statusLED.setBrightness(255);
   statusLED.show();
+
+  randomSeed(analogRead(A7));
+
+  sendSIPO(0);
+  pulsePin(latchPin,10);
 
 //-------------- A/V FEEDBACK --------------------------------//
 
@@ -220,7 +219,21 @@ void loop() {
     magicRecharge();
   }
 
-//.............. Power Down .................................//
+//.............. Bad Cell & Recovery ..........................//
+
+  if (!badBottle && controlMode == 4){
+    byte killBay = random(1,4);
+    badBottle = HFCinPlace[killBay];
+    controlMode = 1;
+  }
+  bottleChargeLevel[badBottle] = 0;
+
+  if (controlMode == 5){
+    badBottle = 0;
+    controlMode = 1;
+  }
+
+//.............. Power Down ...................................//
 
     int holdTime = 0;
     while (!digitalRead(powerButton)){
@@ -232,7 +245,7 @@ void loop() {
       }
     }
   
-//-----------------------------------------------------------//
+//-------------------------------------------------------------//
   dbts();
   cycleReset();
 

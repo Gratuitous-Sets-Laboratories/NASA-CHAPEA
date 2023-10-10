@@ -15,7 +15,10 @@ void determineTarget(){
     targetX = random(1,33);             // generate a random X value
     targetY = random(1,8);              // and Y value
   }
-  if (controlMode == 6) controlMode = 1;
+  if (controlMode == 6){
+    grid.clear();
+    controlMode = 1;
+  }
 
 //.............. Alignment Drift ..............................//
 
